@@ -219,6 +219,12 @@ export const styles = css`
   .place .eta {
     flex: none;
   }
+  /* Baseline is right for the navigation line, where two runs of text share
+     one. It is wrong here: an SVG's baseline is its bottom edge, so the pin
+     rides up by the descender space. Centre the glyph on the text instead. */
+  .place .lead.zone {
+    align-items: center;
+  }
   .place .zone {
     font-weight: var(--ha-font-weight-normal, 400);
     color: var(--tc-dim);

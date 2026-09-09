@@ -307,7 +307,7 @@
       const [theme, values, config] = CASES[which]
       document.body.className = theme
       const card = document.createElement('tesla-fleet-card')
-      card.setConfig({ device_id: DEVICE, units: 'imperial', ...config })
+      card.setConfig({ device_id: DEVICE, units: 'imperial', paint: 'pearl_white', ...config })
       card.hass = makeHass(values)
       document.body.append(card)
       await card.updateComplete

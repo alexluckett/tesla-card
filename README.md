@@ -79,6 +79,8 @@ Nothing is hard-coded.
 
 ![The same card on a dark and a light theme](https://raw.githubusercontent.com/alexluckett/tesla-card/main/docs/themes.png)
 
+The screenshots throughout use Pearl White; set `paint` to whichever of the seven your car is.
+
 ### Miles or kilometres
 
 Tesla report range, odometer and speed in **miles**. Those sensors carry a device class, so
