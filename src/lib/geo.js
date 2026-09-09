@@ -118,3 +118,70 @@ export function bearingLayer(leaflet, from, to, color) {
     interactive: false
   })
 }
+
+/** How far along the line the arrowhead sits, clear of both markers. */
+const ARROW_AT = 0.66
+/** Barb length as a fraction of the line, so it scales with the journey. */
+const ARROW_SIZE = 0.13
+/** Half the angle between the barbs. */
+const ARROW_SPREAD = 0.42
+
+/**
+ * The two coordinates of an arrowhead pointing along a bearing.
+ *
+ * Longitude degrees are shorter than latitude degrees everywhere but the
+ * equator, so the direction is worked out in a flattened space scaled by the
+ * cosine of the latitude and converted back afterwards. Without that the
+ * arrow leans, and the further north you drive the worse it leans.
+ *
+ * @param {[number, number]} from
+ * @param {[number, number]} to
+ * @returns {[number, number][] | null} barb, tip, barb
+ */
+export function arrowPoints(from, to) {
+  if (!from || !to) return null
+  const [lat1, lon1] = from
+  const [lat2, lon2] = to
+
+  const kx = Math.cos((((lat1 + lat2) / 2) * Math.PI) / 180) || 1
+  const dx = (lon2 - lon1) * kx
+  const dy = lat2 - lat1
+  const length = Math.hypot(dx, dy)
+  if (length === 0) return null
+
+  const heading = Math.atan2(dy, dx)
+  const tip = [lat1 + dy * ARROW_AT, lon1 + (lon2 - lon1) * ARROW_AT]
+  const barb = length * ARROW_SIZE
+
+  // Both barbs point back down the line, so the shape reads as an arrowhead
+  // rather than a cross.
+  const back = (spread) => [
+    tip[0] + barb * Math.sin(heading + Math.PI + spread),
+    tip[1] + (barb * Math.cos(heading + Math.PI + spread)) / kx
+  ]
+
+  return [back(-ARROW_SPREAD), tip, back(ARROW_SPREAD)]
+}
+
+/**
+ * The arrowhead as a Leaflet layer, showing which way the car is heading
+ * along the bearing.
+ *
+ * @param {object | null} leaflet
+ * @param {[number, number] | null} from
+ * @param {[number, number] | null} to
+ * @param {string} color
+ */
+export function bearingArrow(leaflet, from, to, color) {
+  if (!leaflet || typeof leaflet.polyline !== 'function') return null
+  const points = arrowPoints(from, to)
+  if (!points) return null
+  return leaflet.polyline(points, {
+    color,
+    weight: 2.5,
+    opacity: 0.9,
+    lineCap: 'round',
+    lineJoin: 'round',
+    interactive: false
+  })
+}

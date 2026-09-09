@@ -69,7 +69,13 @@
           class extends HTMLElement {
             constructor() {
               super()
-              this.Leaflet = { polyline: () => ({ __layer: true }) }
+              this._drawn = []
+              this.Leaflet = {
+                polyline: (points, opts) => {
+                  this._drawn.push({ points, opts })
+                  return { __layer: true }
+                }
+              }
               this._props = {}
               // The real component redraws when its properties change; the
               // card only supplies layers on its second render, once it has
@@ -111,26 +117,29 @@
               }
               // The bearing is a Leaflet layer now, so its ends come from the
               // markers rather than from paths.
-              const bearingPts =
-                (this.layers || []).length && marks.length > 1
-                  ? [{ point: marks[0].at }, { point: marks[1].at }]
-                  : []
               const all = [
                 ...marks.map((m) => m.at),
-                ...paths.flatMap((p) => p.points.map((q) => q.point))
+                ...paths.flatMap((p) => p.points.map((q) => q.point)),
+                ...(this._drawn || []).flatMap((d) => d.points)
               ]
               if (!all.length) return
               const lats = all.map((p) => p[0])
               const lons = all.map((p) => p[1])
-              const pad = 0.25
-              const spanLat = Math.max(...lats) - Math.min(...lats) || 0.02
-              const spanLon = Math.max(...lons) - Math.min(...lons) || 0.02
-              const minLat = Math.min(...lats) - spanLat * pad
-              const minLon = Math.min(...lons) - spanLon * pad
               const w = 460
               const h = 170
-              const x = (lon) => ((lon - minLon) / (spanLon * (1 + pad * 2))) * w
-              const y = (lat) => h - ((lat - minLat) / (spanLat * (1 + pad * 2))) * h
+              // One scale for both axes, as a real map has. Scaling longitude
+              // and latitude independently would skew anything angular drawn
+              // on it, an arrowhead most visibly.
+              const midLat = (Math.max(...lats) + Math.min(...lats)) / 2
+              const kx = Math.cos((midLat * Math.PI) / 180) || 1
+              const cLat = midLat
+              const cLon = (Math.max(...lons) + Math.min(...lons)) / 2
+              const spanLat = Math.max(...lats) - Math.min(...lats) || 0.02
+              const spanLon = (Math.max(...lons) - Math.min(...lons)) * kx || 0.02
+              const pad = 1.5
+              const scale = Math.min(w / (spanLon * pad), h / (spanLat * pad))
+              const x = (lon) => w / 2 + (lon - cLon) * kx * scale
+              const y = (lat) => h / 2 - (lat - cLat) * scale
 
               const land = dark ? '#15181b' : '#f4f5f2'
               const park = dark ? '#1a2620' : '#e3ecdd'
@@ -157,14 +166,16 @@
                   <path d="M52 ${h} Q70 112 60 54" stroke="${road}" stroke-width="4.5"/>
                 </g>
                 ${paths.map((p) => pathEl(p, '')).join('')}
-                ${
-                  (this.layers || []).length
-                    ? pathEl(
-                        { points: bearingPts, color: dark ? '#9b9b9b' : '#727272' },
-                        'stroke-dasharray="6 7" stroke-width="2.5"'
-                      )
-                    : ''
-                }
+                ${(this._drawn || [])
+                  .map((d) =>
+                    pathEl(
+                      { points: d.points.map((pt) => ({ point: pt })), color: d.opts.color },
+                      `stroke-width="2.5"${
+                        d.opts.dashArray ? ` stroke-dasharray="${d.opts.dashArray}"` : ''
+                      }`
+                    )
+                  )
+                  .join('')}
                 ${marks
                   .map(
                     (m) =>

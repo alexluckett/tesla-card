@@ -1,6 +1,13 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { coordsOf, bearingPath, bearingLayer, currentJourney } from '../src/lib/geo.js'
+import {
+  coordsOf,
+  bearingPath,
+  bearingLayer,
+  bearingArrow,
+  arrowPoints,
+  currentJourney
+} from '../src/lib/geo.js'
 
 const CAR = [51.5074, -0.1278]
 const DEST = [51.4545, -2.5879]
@@ -145,5 +152,75 @@ describe('bearingLayer', () => {
     assert.equal(bearingLayer(L, null, DEST2, '#888'), null)
     assert.equal(bearingLayer(L, CAR2, [...CAR2], '#888'), null)
     assert.equal(L.calls.length, 0)
+  })
+})
+
+describe('arrowPoints', () => {
+  const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1])
+
+  test('the tip sits along the line, nearer the destination', () => {
+    const from = [51.0, 0.0]
+    const to = [52.0, 0.0]
+    const [, tip] = arrowPoints(from, to)
+    assert.ok(dist(tip, to) < dist(tip, from), 'points the way it is going')
+    assert.ok(tip[0] > from[0] && tip[0] < to[0], 'and stays on the line')
+  })
+
+  test('both barbs trail behind the tip, so it reads as an arrowhead', () => {
+    const from = [51.0, 0.0]
+    const to = [52.0, 0.0]
+    const [b1, tip, b2] = arrowPoints(from, to)
+    // Heading north, so both barbs must be south of the tip.
+    assert.ok(b1[0] < tip[0])
+    assert.ok(b2[0] < tip[0])
+    // One either side, not both on the same side.
+    assert.ok((b1[1] - tip[1]) * (b2[1] - tip[1]) < 0)
+  })
+
+  test('turns round when the journey does', () => {
+    const [, tipNorth] = arrowPoints([51, 0], [52, 0])
+    const [, tipSouth] = arrowPoints([52, 0], [51, 0])
+    assert.ok(tipNorth[0] > 51 && tipNorth[0] < 52)
+    assert.ok(tipSouth[0] < 52 && tipSouth[0] > 51)
+    assert.ok(tipSouth[0] < tipNorth[0], 'the tip leads in the direction of travel')
+  })
+
+  test('does not lean when the journey runs east to west', () => {
+    // Longitude degrees are shorter than latitude degrees away from the
+    // equator. Without correcting for that the arrowhead skews.
+    const [b1, tip, b2] = arrowPoints([55.0, -1.0], [55.0, 1.0])
+    assert.ok(Math.abs(b1[0] - tip[0]) > 0, 'the barbs spread across the line')
+    assert.ok(
+      Math.abs(Math.abs(b1[0] - tip[0]) - Math.abs(b2[0] - tip[0])) < 1e-9,
+      'and spread evenly either side'
+    )
+  })
+
+  test('scales with the length of the journey', () => {
+    const near = arrowPoints([51, 0], [51.1, 0])
+    const far = arrowPoints([51, 0], [53, 0])
+    const spread = (p) => Math.hypot(p[0][0] - p[2][0], p[0][1] - p[2][1])
+    assert.ok(spread(far) > spread(near), 'a long trip gets a proportionate arrow')
+  })
+
+  test('draws nothing without two distinct ends', () => {
+    assert.equal(arrowPoints([51, 0], [51, 0]), null)
+    assert.equal(arrowPoints(null, [51, 0]), null)
+    assert.equal(arrowPoints([51, 0], null), null)
+  })
+})
+
+describe('bearingArrow', () => {
+  test('builds a Leaflet polyline for the arrowhead', () => {
+    const calls = []
+    const L = { polyline: (points, opts) => (calls.push({ points, opts }), { __layer: true }) }
+    assert.ok(bearingArrow(L, [51, 0], [52, 0], '#888'))
+    assert.equal(calls[0].points.length, 3)
+    assert.equal(calls[0].opts.color, '#888')
+    assert.ok(!calls[0].opts.dashArray, 'the head is solid; only the line is dashed')
+  })
+
+  test('is null without Leaflet', () => {
+    assert.equal(bearingArrow(null, [51, 0], [52, 0], '#888'), null)
   })
 })

@@ -16,7 +16,7 @@ import { readVehicle, minutesSince, formatAge, ASLEEP, CHARGING, DRIVING } from 
 import { ICONS } from './icons.js'
 import { createImageCache, imageErrorAction } from './lib/image-cache.js'
 import { display, resolvePreference } from './lib/units.js'
-import { coordsOf, bearingPath, bearingLayer, currentJourney } from './lib/geo.js'
+import { coordsOf, bearingPath, bearingLayer, bearingArrow, currentJourney } from './lib/geo.js'
 import { shortenPlace, arrivalIn } from './lib/text.js'
 import { mapMode, shouldShowMap, MAP_ALWAYS } from './lib/config.js'
 
@@ -659,9 +659,11 @@ export class TeslaFleetCard extends LitElement {
     const key = `${from}|${to}|${colour}`
     if (this._bearingFor !== key) {
       this._bearingFor = key
-      this._bearingLayer = bearingLayer(this._leaflet, from, to, colour)
+      const line = bearingLayer(this._leaflet, from, to, colour)
+      const arrow = line ? bearingArrow(this._leaflet, from, to, colour) : null
+      this._bearingLayer = [line, arrow].filter(Boolean)
     }
-    return this._bearingLayer ? [this._bearingLayer] : null
+    return this._bearingLayer?.length ? this._bearingLayer : null
   }
 
   /**
