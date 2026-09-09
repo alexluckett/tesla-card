@@ -99,10 +99,7 @@ The integration reports latitude and longitude and nothing else — there is no 
 in it. Naming a place would mean sending your car's exact position to a geocoding service, so
 the card does not do that.
 
-Parked, it names the zone if you have one and stops there. Set a route and a map appears, with
-the destination, distance and arrival time read from the car. The solid trail is where the car
-has actually been, rebuilt from Home Assistant's history; the hatched line is the direct
-bearing to the destination.
+
 
 Tesla does not publish the road route, so nothing on the map pretends to be one.
 

@@ -69,9 +69,10 @@ function readRoute(hass, entities) {
 
   return {
     destination: stateOf(hass, entities.destination)?.state ?? null,
-    // Disabled by default in the integration; the card says so rather than
-    // quietly dropping the name.
-    destinationAvailable: Boolean(entities.destination),
+    // The destination sensor ships disabled. Not being registered at all is
+    // worth telling the user about; being registered but momentarily without
+    // a value is not.
+    destinationEntityMissing: !entities.destination,
     arrival,
     distance,
     distanceUnit: unitOf(hass, entities.distanceToArrival),
@@ -146,7 +147,7 @@ export function formatAge(minutes) {
 /**
  * @typedef {object} RouteState
  * @property {string | null} destination
- * @property {boolean} destinationAvailable
+ * @property {boolean} destinationEntityMissing
  * @property {string | null} arrival
  * @property {number | null} distance
  * @property {string | null} distanceUnit

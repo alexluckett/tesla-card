@@ -16,6 +16,7 @@ import { readVehicle, minutesSince, formatAge, ASLEEP, CHARGING, DRIVING } from 
 import { ICONS } from './icons.js'
 import { createImageCache, imageErrorAction } from './lib/image-cache.js'
 import { display, resolvePreference } from './lib/units.js'
+import { coordsOf, bearingPath } from './lib/geo.js'
 
 const LOW_CHARGE = 20
 /** How much history the trail draws behind the car. */
@@ -327,6 +328,21 @@ export class TeslaFleetCard extends LitElement {
     })
   }
 
+  /**
+   * A real colour value for a token, for handing to a component that renders
+   * in its own shadow root where the variable is not defined.
+   *
+   * @param {string} token
+   * @param {string} fallback
+   */
+  _cssColor(token, fallback) {
+    try {
+      return getComputedStyle(this).getPropertyValue(token).trim() || fallback
+    } catch {
+      return fallback
+    }
+  }
+
   /** Miles or kilometres, settled once per render. */
   _units() {
     return resolvePreference(this._config.units)
@@ -390,8 +406,15 @@ export class TeslaFleetCard extends LitElement {
   _place(vehicle, route) {
     if (route) {
       const eta = this._arrivalIn(route.arrival)
-      const where = route.destination ?? 'Destination'
-      const lead = eta ? `${where} in ${eta}` : where
+      // Without the destination sensor there is no name to lead with, so say
+      // what is actually known rather than the word "Destination".
+      const lead = route.destination
+        ? eta
+          ? `${route.destination} in ${eta}`
+          : route.destination
+        : eta
+          ? `Arriving in ${eta}`
+          : 'On a route'
       const togo = display(route.distance, route.distanceUnit, this._units())
       const detail = [
         togo.value !== null ? `${Math.round(togo.value)} ${togo.unit ?? 'mi'}` : null,
@@ -414,11 +437,21 @@ export class TeslaFleetCard extends LitElement {
     if (!customElements.get('ha-map')) return nothing
     const points = [entities.location, entities.route].filter(Boolean)
     const paths = []
+    // The map lives in its own shadow root, so a CSS variable would never
+    // resolve there. Read the real colour off this card instead.
     if (this._trail?.length > 1) {
-      paths.push({ points: this._trail, color: 'var(--tc-accent)', gradualOpacity: 0.8 })
+      paths.push({
+        points: this._trail,
+        color: this._cssColor('--tc-accent', '#03a9f4'),
+        gradualOpacity: 0.8
+      })
     }
-    // Tesla does not publish the road route, so the line to the destination is
-    // drawn hatched: it is a bearing, not a route.
+    const bearing = bearingPath(
+      coordsOf(this.hass, entities.location),
+      coordsOf(this.hass, entities.route),
+      this._cssColor('--tc-dim', '#9b9b9b')
+    )
+    if (bearing) paths.push(bearing)
     void route
     return html`<ha-map
       .hass=${this.hass}
@@ -499,7 +532,7 @@ export class TeslaFleetCard extends LitElement {
           show your own.`
       )
     }
-    if (route && !route.destinationAvailable) {
+    if (route && route.destinationEntityMissing) {
       notices.push(
         html`Enable the <code>Destination</code> entity on this device to see where the car is
           headed by name.`

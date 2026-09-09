@@ -18,6 +18,7 @@ export default [
         queueMicrotask: 'readonly',
         indexedDB: 'readonly',
         fetch: 'readonly',
+        getComputedStyle: 'readonly',
         Blob: 'readonly'
       }
     },

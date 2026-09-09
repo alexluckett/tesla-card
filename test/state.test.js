@@ -147,6 +147,7 @@ describe('route', () => {
     assert.ok(v.route, 'but the route is readable')
     assert.equal(v.route.destination, 'Home')
     assert.equal(v.route.distance, 23)
+    assert.equal(v.route.destinationEntityMissing, false)
   })
 
   test('works without the destination sensor, which ships disabled', () => {
@@ -158,7 +159,11 @@ describe('route', () => {
     const route = readVehicle(hass, resolveEntities(hass, DEVICE)).route
     assert.ok(route)
     assert.equal(route.destination, null)
-    assert.equal(route.destinationAvailable, false)
+    assert.equal(
+      route.destinationEntityMissing,
+      true,
+      'the card can then say which entity to enable'
+    )
   })
 })
 
