@@ -2,4 +2,5 @@ test/anim-check.html
 test/cache-check.html
 test/harness-cache.html
 test/harness.html
+test/map-load-check.html
 test/shot.html
