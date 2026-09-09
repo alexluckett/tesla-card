@@ -1,0 +1,158 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>charging animation check</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        background: #111;
+        font: 13px Roboto, sans-serif;
+        color: #9b9b9b;
+        --primary-text-color: #e1e1e1;
+        --secondary-text-color: #9b9b9b;
+        --divider-color: rgba(225, 225, 225, 0.12);
+        --primary-color: #03a9f4;
+        --warning-color: #ffa726;
+        --success-color: #43a047;
+        --card-background-color: #1c1c1c;
+        --ha-card-background: #1c1c1c;
+      }
+      tesla-fleet-card {
+        display: block;
+        width: 440px;
+      }
+      pre {
+        background: #1c1c1c;
+        padding: 10px;
+        border-radius: 8px;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <script type="module">
+      const log = []
+      const say = (m) => {
+        log.push(m)
+        console.log('[anim] ' + m)
+      }
+
+      if (!customElements.get('ha-card')) {
+        customElements.define(
+          'ha-card',
+          class extends HTMLElement {
+            connectedCallback() {
+              this.style.cssText =
+                'display:block;background:var(--ha-card-background);border:1px solid var(--divider-color);border-radius:12px;'
+            }
+          }
+        )
+      }
+      await import('../dist/tesla-card.js')
+
+      const DEVICE = 'dev_my'
+      const KEYS = {
+        battery: 'sensor:charge_state_battery_level',
+        range: 'sensor:charge_state_battery_range',
+        chargingState: 'sensor:charge_state_charging_state',
+        chargeLimit: 'number:charge_state_charge_limit_soc',
+        online: 'binary_sensor:state',
+        locked: 'lock:vehicle_state_locked',
+        shiftState: 'sensor:drive_state_shift_state'
+      }
+      const build = (charging) => {
+        const values = {
+          battery: { state: '63' },
+          range: { state: '176', attributes: { unit_of_measurement: 'mi' } },
+          chargingState: { state: charging ? 'charging' : 'disconnected' },
+          chargeLimit: { state: '80' },
+          online: { state: 'on' },
+          locked: { state: 'locked' },
+          shiftState: { state: 'p' }
+        }
+        const entities = {}
+        const states = {}
+        for (const [name, v] of Object.entries(values)) {
+          const [domain, key] = KEYS[name].split(':')
+          const id = `${domain}.y_${name}`
+          entities[id] = {
+            entity_id: id,
+            device_id: DEVICE,
+            platform: 'tesla_fleet',
+            translation_key: key
+          }
+          states[id] = {
+            entity_id: id,
+            state: v.state,
+            attributes: v.attributes ?? {},
+            last_updated: new Date().toISOString()
+          }
+        }
+        return {
+          entities,
+          states,
+          devices: { [DEVICE]: { id: DEVICE, name: 'Model Y', model: 'Model Y', serial_number: '7SAYGDEF9TA123456' } },
+          config: { country: 'GB' },
+          locale: { language: 'en-GB' }
+        }
+      }
+
+      const make = (charging) => {
+        const card = document.createElement('tesla-fleet-card')
+        card.setConfig({ device_id: DEVICE, units: 'imperial' })
+        card.hass = build(charging)
+        document.body.append(card)
+        return card
+      }
+
+      const charging = make(true)
+      const idle = make(false)
+      await charging.updateComplete
+      await idle.updateComplete
+      await new Promise((r) => setTimeout(r, 60))
+
+      const fillOf = (card) => card.shadowRoot.querySelector('.fill')
+      const cFill = fillOf(charging)
+      const iFill = fillOf(idle)
+
+      say(`charging fill classes: ${cFill.className}`)
+      say(`idle fill classes: ${iFill.className}`)
+
+      // getAnimations reports what is actually running, including on ::after.
+      const running = cFill.getAnimations({ subtree: true })
+      const idleRunning = iFill.getAnimations({ subtree: true })
+      say(`animations on the charging fill: ${running.length}`)
+      say(`animations on the idle fill: ${idleRunning.length}`)
+      for (const a of running) {
+        say(
+          `  ${a.animationName || a.constructor.name} state=${a.playState} ` +
+            `duration=${a.effect.getTiming().duration}ms iterations=${a.effect.getTiming().iterations}`
+        )
+      }
+
+      // Prove it moves: sample the ::after transform at two points in time.
+      const at = (ms) => {
+        running.forEach((a) => {
+          a.pause()
+          a.currentTime = ms
+        })
+        const s = getComputedStyle(cFill, '::after').transform
+        return s
+      }
+      const t0 = at(0)
+      const t1 = at(900)
+      const t2 = at(1800)
+      say(`transform at 0ms:    ${t0}`)
+      say(`transform at 900ms:  ${t1}`)
+      say(`transform at 1800ms: ${t2}`)
+      say(`moves over time: ${t0 !== t1 && t1 !== t2}`)
+
+      const pre = document.createElement('pre')
+      pre.id = 'result'
+      pre.textContent = log.join('\n')
+      document.body.append(pre)
+    </script>
+  </body>
+</html>

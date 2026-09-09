@@ -4,7 +4,7 @@ A Home Assistant dashboard card for vehicles on the [Tesla Fleet][fleet] integra
 at your car and it works out the rest: model, model year, body generation and every entity it
 needs.
 
-![The card, parked and navigating](https://raw.githubusercontent.com/alexluckett/tesla-card/main/docs/preview.png)
+![The card parked, and driving with a route set](https://raw.githubusercontent.com/alexluckett/tesla-card/main/docs/preview.png)
 
 ## Install
 
@@ -65,10 +65,19 @@ polls every ten minutes, so **asleep is the common state** and driving is the ra
 
 - **Asleep** — the last known reading, dimmed, with its age stated plainly.
 - **Parked** — charge, range, lock state, and the zone if Home Assistant has one.
-- **Charging** — the gauge fills in green and shows energy flowing.
+- **Charging** — the gauge fills in green, and a slow sheen runs along it while energy flows.
 - **Driving** — speed leads instead of charge.
 
+![Parked, charging, driving and asleep](https://raw.githubusercontent.com/alexluckett/tesla-card/main/docs/states.png)
+
 The mark on the charge gauge is your **charge limit**, read from the car.
+
+### Light and dark
+
+Every colour comes from a Home Assistant token, so the card follows whatever theme is running.
+Nothing is hard-coded.
+
+![The same card on a dark and a light theme](https://raw.githubusercontent.com/alexluckett/tesla-card/main/docs/themes.png)
 
 ### Miles or kilometres
 
@@ -103,6 +112,11 @@ the card does not do that.
 
 Tesla does not publish the road route, so nothing on the map pretends to be one.
 
+![Driving with the map showing the bearing to the destination](https://raw.githubusercontent.com/alexluckett/tesla-card/main/docs/map.png)
+
+The map above is drawn from the coordinates the card passes; Home Assistant renders the
+cartography itself, in your theme.
+
 The destination comes from the car's own navigation, not from your zones, so it works for
 anywhere you drive: `Tesco Extra, Slough in 12 min` as readily as `Home in 20 min`. A full
 postal address is reduced to its first part — `42 Kingsway Avenue` rather than the whole
@@ -123,8 +137,12 @@ exposes, so a read-only setup never shows a dead button.
 They show what they control rather than just offering a switch: the lock reads `Locked` or
 `Unlocked`, climate shows its target temperature while it is running, and anything currently
 active is tinted. So the row doubles as a second status line and is worth having on screen even
-when you rarely press it. Controlling a Tesla needs command
-signing set up in the integration; if you have not done that, leave this off.
+when you rarely press it.
+
+![Controls at rest, and with charging, climate and sentry active](https://raw.githubusercontent.com/alexluckett/tesla-card/main/docs/controls.png)
+
+Controlling a Tesla needs command signing set up in the integration; if you have not done that,
+leave this off.
 
 Tapping the card itself does nothing. Only buttons act.
 
@@ -196,6 +214,11 @@ npm run build
 ```
 
 `npm run verify` runs lint, format, tests and the build together.
+
+`test/harness.html` renders the card against a stubbed Home Assistant, `test/shot.html` renders
+one state at a time for the screenshots above, and `test/anim-check.html` reports whether the
+charging animation is actually running rather than merely present in the stylesheet. Serve the
+repository over HTTP and open them; they load `dist/`, so build first.
 
 ## Licence
 

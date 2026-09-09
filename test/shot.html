@@ -1,0 +1,260 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>card shot</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        padding: 18px;
+        font: 13px Roboto, sans-serif;
+      }
+      body.dark {
+        background: #111;
+        --primary-text-color: #e1e1e1;
+        --secondary-text-color: #9b9b9b;
+        --divider-color: rgba(225, 225, 225, 0.12);
+        --card-background-color: #1c1c1c;
+        --ha-card-background: #1c1c1c;
+      }
+      body.light {
+        background: #f2f3f5;
+        --primary-text-color: #212121;
+        --secondary-text-color: #727272;
+        --divider-color: rgba(0, 0, 0, 0.12);
+        --card-background-color: #fff;
+        --ha-card-background: #fff;
+      }
+      :root {
+        --primary-color: #03a9f4;
+        --warning-color: #ffa726;
+        --success-color: #43a047;
+        --ha-font-family-body: Roboto, sans-serif;
+      }
+      tesla-fleet-card {
+        display: block;
+        width: 460px;
+      }
+    </style>
+  </head>
+  <body>
+    <script type="module">
+      if (!customElements.get('ha-card')) {
+        customElements.define(
+          'ha-card',
+          class extends HTMLElement {
+            connectedCallback() {
+              this.style.cssText =
+                'display:block;background:var(--ha-card-background);' +
+                'border:1px solid var(--divider-color);border-radius:12px;'
+            }
+          }
+        )
+      }
+
+      // Home Assistant renders the map itself. This stand-in plots the real
+      // points the card hands over, so the shape shown is the card's own
+      // output rather than an illustration.
+      if (!customElements.get('ha-map')) {
+        customElements.define(
+          'ha-map',
+          class extends HTMLElement {
+            connectedCallback() {
+              queueMicrotask(() => this._draw())
+            }
+            _draw() {
+              const dark = document.body.classList.contains('dark')
+              const paths = this.paths || []
+              const marks = []
+              for (const id of this.entities || []) {
+                const a = window.__hass?.states?.[id]?.attributes
+                if (a && typeof a.latitude === 'number') marks.push([a.latitude, a.longitude])
+              }
+              const all = [...marks, ...paths.flatMap((p) => p.points.map((q) => q.point))]
+              if (!all.length) return
+              const lats = all.map((p) => p[0])
+              const lons = all.map((p) => p[1])
+              const pad = 0.25
+              const spanLat = Math.max(...lats) - Math.min(...lats) || 0.02
+              const spanLon = Math.max(...lons) - Math.min(...lons) || 0.02
+              const minLat = Math.min(...lats) - spanLat * pad
+              const minLon = Math.min(...lons) - spanLon * pad
+              const w = 460
+              const h = 170
+              const x = (lon) => ((lon - minLon) / (spanLon * (1 + pad * 2))) * w
+              const y = (lat) => h - ((lat - minLat) / (spanLat * (1 + pad * 2))) * h
+
+              const land = dark ? '#15181b' : '#f4f5f2'
+              const park = dark ? '#1a2620' : '#e3ecdd'
+              const water = dark ? '#15303c' : '#cbe0ee'
+              const road = dark ? '#333940' : '#ffffff'
+              const casing = dark ? '#22262b' : '#e0e4de'
+
+              const pathEl = (p, extra) =>
+                `<path d="${p.points
+                  .map((q, i) => `${i ? 'L' : 'M'} ${x(q.point[1]).toFixed(1)} ${y(q.point[0]).toFixed(1)}`)
+                  .join(' ')}" fill="none" stroke="${p.color}" stroke-width="3.5"
+                  stroke-linecap="round" stroke-linejoin="round" ${extra}/>`
+
+              this.innerHTML = `<svg viewBox="0 0 ${w} ${h}" width="100%" height="100%">
+                <rect width="${w}" height="${h}" fill="${land}"/>
+                <path d="M280 0 H${w} V90 Q400 104 330 74 Q296 56 280 0Z" fill="${park}"/>
+                <path d="M0 118 Q62 108 108 128 L108 ${h} H0Z" fill="${park}"/>
+                <path d="M108 ${h} Q152 112 192 88 Q238 62 272 0" stroke="${water}"
+                  stroke-width="10" fill="none" stroke-linecap="round"/>
+                <g fill="none" stroke-linecap="round">
+                  <path d="M0 56 Q126 40 224 72 Q326 102 ${w} 92" stroke="${casing}" stroke-width="11"/>
+                  <path d="M0 56 Q126 40 224 72 Q326 102 ${w} 92" stroke="${road}" stroke-width="7"/>
+                  <path d="M52 ${h} Q70 112 60 54" stroke="${casing}" stroke-width="8"/>
+                  <path d="M52 ${h} Q70 112 60 54" stroke="${road}" stroke-width="4.5"/>
+                </g>
+                <!-- Solid, because HaMapPaths has no dash option: the real
+                     map tells the two lines apart by colour alone. -->
+                ${paths.map((p) => pathEl(p, '')).join('')}
+                ${marks
+                  .map(
+                    (m, i) =>
+                      `<circle cx="${x(m[1]).toFixed(1)}" cy="${y(m[0]).toFixed(1)}" r="6"
+                        fill="${i === 0 ? '#03a9f4' : dark ? '#e1e1e1' : '#212121'}"
+                        stroke="${dark ? '#1c1c1c' : '#fff'}" stroke-width="2.5"/>`
+                  )
+                  .join('')}
+              </svg>`
+              this.style.cssText = 'display:block;line-height:0'
+            }
+          }
+        )
+      }
+
+      await import('../dist/tesla-card.js')
+
+      const DEVICE = 'dev_my'
+      const KEYS = {
+        battery: 'sensor:charge_state_battery_level',
+        range: 'sensor:charge_state_battery_range',
+        chargingState: 'sensor:charge_state_charging_state',
+        chargeLimit: 'number:charge_state_charge_limit_soc',
+        speed: 'sensor:drive_state_speed',
+        shiftState: 'sensor:drive_state_shift_state',
+        online: 'binary_sensor:state',
+        locked: 'lock:vehicle_state_locked',
+        location: 'device_tracker:location',
+        route: 'device_tracker:route',
+        arrivalTime: 'sensor:drive_state_active_route_minutes_to_arrival',
+        distanceToArrival: 'sensor:drive_state_active_route_miles_to_arrival',
+        destination: 'sensor:drive_state_active_route_destination',
+        chargeSwitch: 'switch:charge_state_charging_state',
+        sentry: 'switch:vehicle_state_sentry_mode',
+        climate: 'climate:driver_temp',
+        wake: 'button:wake'
+      }
+
+      function makeHass(values) {
+        const entities = {}
+        const states = {}
+        for (const [name, v] of Object.entries(values)) {
+          const [domain, key] = (KEYS[name] || 'sensor:x').split(':')
+          const id = `${domain}.model_y_${name}`
+          entities[id] = { entity_id: id, device_id: DEVICE, platform: 'tesla_fleet', translation_key: key }
+          states[id] = {
+            entity_id: id,
+            state: v.state,
+            attributes: v.attributes ?? {},
+            last_updated: v.last_updated ?? new Date(Date.now() - 4 * 60000).toISOString()
+          }
+        }
+        const hass = {
+          entities,
+          states,
+          devices: {
+            [DEVICE]: { id: DEVICE, name: 'Model Y', model: 'Model Y', serial_number: '7SAYGDEF9TA123456' }
+          },
+          config: { country: 'GB' },
+          locale: { language: 'en-GB' },
+          callService: async () => {}
+        }
+        window.__hass = hass
+        return hass
+      }
+
+      const parked = {
+        battery: { state: '71' },
+        range: { state: '198', attributes: { unit_of_measurement: 'mi' } },
+        chargingState: { state: 'disconnected' },
+        shiftState: { state: 'p' },
+        speed: { state: 'unknown' },
+        online: { state: 'on' },
+        locked: { state: 'locked' },
+        location: { state: 'home', attributes: { latitude: 51.5074, longitude: -0.1278 } },
+        chargeLimit: { state: '80' }
+      }
+      const controlsOff = {
+        chargeSwitch: { state: 'off' },
+        climate: { state: 'off' },
+        sentry: { state: 'off' },
+        wake: { state: 'unknown' }
+      }
+      const navigating = {
+        ...parked,
+        battery: { state: '54' },
+        range: { state: '151', attributes: { unit_of_measurement: 'mi' } },
+        shiftState: { state: 'd' },
+        speed: { state: '38', attributes: { unit_of_measurement: 'mph' } },
+        locked: { state: 'unlocked' },
+        location: { state: 'not_home', attributes: { latitude: 51.44, longitude: -0.75 } },
+        route: { state: 'not_home', attributes: { latitude: 51.51, longitude: -0.62 } },
+        arrivalTime: { state: new Date(Date.now() + 20 * 60000).toISOString() },
+        distanceToArrival: { state: '14', attributes: { unit_of_measurement: 'mi' } },
+        destination: { state: 'Home' }
+      }
+
+      const CASES = {
+        parked: ['dark', parked, {}],
+        charging: [
+          'dark',
+          { ...parked, battery: { state: '63' }, range: { state: '176', attributes: { unit_of_measurement: 'mi' } }, chargingState: { state: 'charging' } },
+          {}
+        ],
+        navigating: ['dark', navigating, { map: 'never' }],
+        navigating_map: ['dark', navigating, {}],
+        asleep: ['dark', { ...parked, online: { state: 'off' } }, {}],
+        low: ['dark', { ...parked, battery: { state: '12' } }, {}],
+        controls_rest: ['dark', { ...parked, ...controlsOff }, { controls: true }],
+        controls_active: [
+          'dark',
+          {
+            ...parked,
+            chargingState: { state: 'charging' },
+            locked: { state: 'unlocked' },
+            chargeSwitch: { state: 'on' },
+            climate: { state: 'heat_cool', attributes: { temperature: 21 } },
+            sentry: { state: 'on' },
+            wake: { state: 'unknown' }
+          },
+          { controls: true }
+        ],
+        map: ['dark', navigating, { map: 'always' }],
+        light: ['light', parked, { paint: 'pearl_white' }],
+        light_nav: ['light', navigating, { map: 'always', paint: 'pearl_white' }]
+      }
+
+      const which = location.hash.slice(1) || 'parked'
+      const [theme, values, config] = CASES[which]
+      document.body.className = theme
+      const card = document.createElement('tesla-fleet-card')
+      card.setConfig({ device_id: DEVICE, units: 'imperial', ...config })
+      card.hass = makeHass(values)
+      document.body.append(card)
+      await card.updateComplete
+      console.log('[shot] ' + which)
+    </script>
+  </body>
+</html>
