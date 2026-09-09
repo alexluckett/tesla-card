@@ -33,3 +33,27 @@ export function shortenPlace(name, comfortable = COMFORTABLE) {
   if (first && first.length < trimmed.length) return first
   return trimmed
 }
+
+/**
+ * How long until the car arrives, as a person would say it.
+ *
+ * Returns null when the arrival is now or already past, so the card falls
+ * back to naming the destination without a stale countdown beside it.
+ *
+ * @param {string | null | undefined} iso Timestamp from the arrival sensor
+ * @param {Date} [now]
+ * @returns {string | null}
+ */
+export function arrivalIn(iso, now = new Date()) {
+  if (typeof iso !== 'string' || !iso) return null
+  const at = new Date(iso)
+  if (Number.isNaN(at.getTime())) return null
+
+  const minutes = Math.round((at.getTime() - now.getTime()) / 60000)
+  if (minutes < 1) return null
+  if (minutes < 60) return `${minutes} min`
+
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  return rest ? `${hours} hr ${rest} min` : `${hours} hr`
+}

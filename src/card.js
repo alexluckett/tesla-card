@@ -16,8 +16,8 @@ import { readVehicle, minutesSince, formatAge, ASLEEP, CHARGING, DRIVING } from 
 import { ICONS } from './icons.js'
 import { createImageCache, imageErrorAction } from './lib/image-cache.js'
 import { display, resolvePreference } from './lib/units.js'
-import { coordsOf, bearingPath } from './lib/geo.js'
-import { shortenPlace } from './lib/text.js'
+import { coordsOf, bearingPath, currentJourney } from './lib/geo.js'
+import { shortenPlace, arrivalIn } from './lib/text.js'
 
 const LOW_CHARGE = 20
 /** How much history the trail draws behind the car. */
@@ -406,7 +406,7 @@ export class TeslaFleetCard extends LitElement {
    */
   _place(vehicle, route) {
     if (route) {
-      const eta = this._arrivalIn(route.arrival)
+      const eta = arrivalIn(route.arrival)
       const where = shortenPlace(route.destination)
       // The name is the part that may not fit, so it is the part that gets
       // truncated. The time must never be the thing that falls off the end.
@@ -438,9 +438,10 @@ export class TeslaFleetCard extends LitElement {
     const paths = []
     // The map lives in its own shadow root, so a CSS variable would never
     // resolve there. Read the real colour off this card instead.
-    if (this._trail?.length > 1) {
+    const journey = currentJourney(this._trail ?? [])
+    if (journey.length > 1) {
       paths.push({
-        points: this._trail,
+        points: journey,
         color: this._cssColor('--tc-accent', '#03a9f4'),
         gradualOpacity: 0.8
       })
@@ -567,8 +568,10 @@ export class TeslaFleetCard extends LitElement {
               const lat = attributes.latitude
               const lon = attributes.longitude
               if (typeof lat !== 'number' || typeof lon !== 'number') return null
+              // The stream sends unix seconds; anything else is unusable.
               const at = entry.lu ?? entry.last_updated
-              return { point: [lat, lon], timestamp: new Date((at ?? 0) * 1000) }
+              if (typeof at !== 'number') return null
+              return { point: [lat, lon], timestamp: new Date(at * 1000) }
             })
             .filter(Boolean)
           if (points.length) this._trail = points
@@ -605,18 +608,6 @@ export class TeslaFleetCard extends LitElement {
 
   _showMap() {
     return this._config?.map !== false
-  }
-
-  _arrivalIn(iso) {
-    if (!iso) return null
-    const at = new Date(iso)
-    if (Number.isNaN(at.getTime())) return null
-    const minutes = Math.round((at.getTime() - Date.now()) / 60000)
-    if (minutes < 1) return null
-    if (minutes < 60) return `${minutes} min`
-    const hours = Math.floor(minutes / 60)
-    const rest = minutes % 60
-    return rest ? `${hours} hr ${rest} min` : `${hours} hr`
   }
 
   _clock(iso) {
