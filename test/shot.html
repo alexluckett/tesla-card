@@ -67,8 +67,29 @@
         customElements.define(
           'ha-map',
           class extends HTMLElement {
+            constructor() {
+              super()
+              this.Leaflet = { polyline: () => ({ __layer: true }) }
+              this._props = {}
+              // The real component redraws when its properties change; the
+              // card only supplies layers on its second render, once it has
+              // found Leaflet.
+              for (const name of ['entities', 'paths', 'layers']) {
+                Object.defineProperty(this, name, {
+                  get: () => this._props[name],
+                  set: (v) => {
+                    this._props[name] = v
+                    this._schedule()
+                  }
+                })
+              }
+            }
+            _schedule() {
+              clearTimeout(this._t)
+              this._t = setTimeout(() => this._draw(), 0)
+            }
             connectedCallback() {
-              queueMicrotask(() => this._draw())
+              this._schedule()
             }
             _draw() {
               const dark = document.body.classList.contains('dark')
@@ -88,7 +109,16 @@
                   marks.push({ at: [a.latitude, a.longitude], colour })
                 }
               }
-              const all = [...marks.map((m) => m.at), ...paths.flatMap((p) => p.points.map((q) => q.point))]
+              // The bearing is a Leaflet layer now, so its ends come from the
+              // markers rather than from paths.
+              const bearingPts =
+                (this.layers || []).length && marks.length > 1
+                  ? [{ point: marks[0].at }, { point: marks[1].at }]
+                  : []
+              const all = [
+                ...marks.map((m) => m.at),
+                ...paths.flatMap((p) => p.points.map((q) => q.point))
+              ]
               if (!all.length) return
               const lats = all.map((p) => p[0])
               const lons = all.map((p) => p[1])
@@ -126,9 +156,15 @@
                   <path d="M52 ${h} Q70 112 60 54" stroke="${casing}" stroke-width="8"/>
                   <path d="M52 ${h} Q70 112 60 54" stroke="${road}" stroke-width="4.5"/>
                 </g>
-                <!-- Solid, because HaMapPaths has no dash option: the real
-                     map tells the two lines apart by colour alone. -->
                 ${paths.map((p) => pathEl(p, '')).join('')}
+                ${
+                  (this.layers || []).length
+                    ? pathEl(
+                        { points: bearingPts, color: dark ? '#9b9b9b' : '#727272' },
+                        'stroke-dasharray="6 7" stroke-width="2.5"'
+                      )
+                    : ''
+                }
                 ${marks
                   .map(
                     (m) =>

@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { coordsOf, bearingPath, currentJourney } from '../src/lib/geo.js'
+import { coordsOf, bearingPath, bearingLayer, currentJourney } from '../src/lib/geo.js'
 
 const CAR = [51.5074, -0.1278]
 const DEST = [51.4545, -2.5879]
@@ -104,5 +104,46 @@ describe('currentJourney', () => {
   test('discards fixes with no usable time', () => {
     const journey = currentJourney([at(0), { point: [1, 2], timestamp: 'nope' }, at(10)])
     assert.equal(journey.length, 2)
+  })
+})
+
+describe('bearingLayer', () => {
+  const CAR2 = [51.5074, -0.1278]
+  const DEST2 = [51.4545, -2.5879]
+  // Just enough of Leaflet to record what it was asked for.
+  const fakeLeaflet = () => {
+    const calls = []
+    return {
+      calls,
+      polyline: (points, opts) => {
+        calls.push({ points, opts })
+        return { __layer: true }
+      }
+    }
+  }
+
+  test('draws the bearing dashed, which a path cannot be', () => {
+    // HaMapPaths has no dash option, so the only way to make the bearing
+    // visually distinct from the trail is a Leaflet layer.
+    const L = fakeLeaflet()
+    const layer = bearingLayer(L, CAR2, DEST2, '#888')
+    assert.ok(layer)
+    assert.deepEqual(L.calls[0].points, [CAR2, DEST2])
+    assert.equal(L.calls[0].opts.dashArray, '6 7')
+    assert.equal(L.calls[0].opts.color, '#888')
+    assert.equal(L.calls[0].opts.interactive, false)
+  })
+
+  test('is null without Leaflet, so the caller can fall back to a solid path', () => {
+    assert.equal(bearingLayer(null, CAR2, DEST2, '#888'), null)
+    assert.equal(bearingLayer({}, CAR2, DEST2, '#888'), null)
+  })
+
+  test('needs both ends, and draws nothing once arrived', () => {
+    const L = fakeLeaflet()
+    assert.equal(bearingLayer(L, CAR2, null, '#888'), null)
+    assert.equal(bearingLayer(L, null, DEST2, '#888'), null)
+    assert.equal(bearingLayer(L, CAR2, [...CAR2], '#888'), null)
+    assert.equal(L.calls.length, 0)
   })
 })

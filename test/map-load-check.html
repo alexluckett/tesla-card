@@ -61,10 +61,20 @@
               customElements.define(
                 'ha-map',
                 class extends HTMLElement {
+                  constructor() {
+                    super()
+                    // The real component keeps Leaflet on the instance.
+                    window.__polylines = []
+                    this.Leaflet = {
+                      polyline: (points, opts) => {
+                        window.__polylines.push({ points, opts })
+                        return { __layer: true }
+                      }
+                    }
+                  }
                   connectedCallback() {
                     this.style.cssText =
                       'display:block;height:100%;background:#26303a;border-radius:10px'
-                    this.textContent = ''
                   }
                 }
               )
@@ -85,7 +95,10 @@
         online: 'binary_sensor:state',
         locked: 'lock:vehicle_state_locked',
         shiftState: 'sensor:drive_state_shift_state',
-        location: 'device_tracker:location'
+        location: 'device_tracker:location',
+        route: 'device_tracker:route',
+        arrivalTime: 'sensor:drive_state_active_route_minutes_to_arrival',
+        distanceToArrival: 'sensor:drive_state_active_route_miles_to_arrival'
       }
       const values = {
         battery: { state: '71' },
@@ -94,7 +107,10 @@
         online: { state: 'on' },
         locked: { state: 'locked' },
         shiftState: { state: 'p' },
-        location: { state: 'not_home', attributes: { latitude: 51.5074, longitude: -0.1278 } }
+        location: { state: 'not_home', attributes: { latitude: 51.5074, longitude: -0.1278 } },
+        route: { state: 'not_home', attributes: { latitude: 51.4545, longitude: -2.5879 } },
+        arrivalTime: { state: new Date(Date.now() + 20 * 60000).toISOString() },
+        distanceToArrival: { state: '14', attributes: { unit_of_measurement: 'mi' } }
       }
       const entities = {}
       const states = {}
@@ -149,6 +165,13 @@
       say(`helper used: ${helperCalled}`)
       say(`map in the card after loading: ${present}`)
       say(`RESULT: ${present ? 'map appears' : 'STILL MISSING'}`)
+
+      const mapEl = card.shadowRoot.querySelector('ha-map')
+      say(`layers passed to the map: ${(mapEl?.layers || []).length}`)
+      say(`solid bearing still in paths: ${(mapEl?.paths || []).some((p) => p.name)}`)
+      const drawn = window.__polylines || []
+      say(`polylines Leaflet was asked for: ${drawn.length}`)
+      if (drawn.length) say(`dashArray: ${JSON.stringify(drawn[0].opts.dashArray)}`)
 
       const pre = document.createElement('pre')
       pre.id = 'result'

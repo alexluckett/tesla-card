@@ -16,7 +16,7 @@ import { readVehicle, minutesSince, formatAge, ASLEEP, CHARGING, DRIVING } from 
 import { ICONS } from './icons.js'
 import { createImageCache, imageErrorAction } from './lib/image-cache.js'
 import { display, resolvePreference } from './lib/units.js'
-import { coordsOf, bearingPath, currentJourney } from './lib/geo.js'
+import { coordsOf, bearingPath, bearingLayer, currentJourney } from './lib/geo.js'
 import { shortenPlace, arrivalIn } from './lib/text.js'
 import { mapMode, shouldShowMap, MAP_ALWAYS } from './lib/config.js'
 
@@ -44,6 +44,10 @@ export class TeslaFleetCard extends LitElement {
     this._cachedSrc = null
     this._cachedFor = null
     this._mapLoading = false
+    /** Leaflet, once the map element has finished loading it. */
+    this._leaflet = null
+    this._bearingLayer = null
+    this._bearingFor = null
     /** Renders already retried from the network, so a bad one cannot loop. */
     this._retried = new Set()
     // Tesla serve the render with max-age=60, so without this the browser
@@ -73,6 +77,10 @@ export class TeslaFleetCard extends LitElement {
     this._cachedSrc = null
     this._cachedFor = null
     this._mapLoading = false
+    /** Leaflet, once the map element has finished loading it. */
+    this._leaflet = null
+    this._bearingLayer = null
+    this._bearingFor = null
   }
 
   /** Masonry sizing. One unit is 50px. */
@@ -491,14 +499,16 @@ export class TeslaFleetCard extends LitElement {
     // Only while a route is actually set: the route tracker can still hold
     // the last destination after arriving, and a line to somewhere the car is
     // no longer going would be a lie.
-    const bearing = route
-      ? bearingPath(
-          coordsOf(this.hass, entities.location),
-          coordsOf(this.hass, entities.route),
-          this._cssColor('--tc-dim', '#9b9b9b')
-        )
-      : null
-    if (bearing) paths.push(bearing)
+    const from = route ? coordsOf(this.hass, entities.location) : null
+    const to = route ? coordsOf(this.hass, entities.route) : null
+    const colour = this._cssColor('--tc-dim', '#9b9b9b')
+
+    // Prefer a dashed Leaflet layer; a path can only be solid.
+    const layers = this._dashedBearing(from, to, colour)
+    if (!layers) {
+      const bearing = bearingPath(from, to, colour)
+      if (bearing) paths.push(bearing)
+    }
     // No hass property: ha-map takes states, config and connection from Lit
     // contexts the dashboard provides, and those requests cross this card's
     // shadow boundary on their own. Home Assistant's own map card passes the
@@ -506,6 +516,7 @@ export class TeslaFleetCard extends LitElement {
     return html`<ha-map
       .entities=${points}
       .paths=${paths}
+      .layers=${layers ?? []}
       .themeMode=${'auto'}
       .autoFit=${true}
       .zoom=${13}
@@ -637,6 +648,34 @@ export class TeslaFleetCard extends LitElement {
     }
     if (!notices.length) return nothing
     return html`${notices.map((notice) => html`<div class="notice">${notice}</div>`)}`
+  }
+
+  /**
+   * The bearing as a dashed layer, rebuilt only when the ends move so the
+   * map is not asked to redraw it on every state update.
+   */
+  _dashedBearing(from, to, colour) {
+    if (!from || !to || !this._leaflet) return null
+    const key = `${from}|${to}|${colour}`
+    if (this._bearingFor !== key) {
+      this._bearingFor = key
+      this._bearingLayer = bearingLayer(this._leaflet, from, to, colour)
+    }
+    return this._bearingLayer ? [this._bearingLayer] : null
+  }
+
+  /**
+   * Leaflet lives on the map element and arrives after its own async import,
+   * so it is picked up once available and the card re-rendered to use it.
+   */
+  updated() {
+    if (this._leaflet) return
+    const map = this.shadowRoot?.querySelector('ha-map')
+    const leaflet = map?.Leaflet
+    if (leaflet) {
+      this._leaflet = leaflet
+      this.requestUpdate()
+    }
   }
 
   /**

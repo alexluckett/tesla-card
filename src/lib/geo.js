@@ -88,3 +88,33 @@ export function currentJourney(points, gapMs = 25 * 60 * 1000) {
   // A single fix is a dot, not a path, and drawing one is just noise.
   return journey.length >= 2 ? journey : []
 }
+
+/**
+ * A dashed line from the car to its destination, as a Leaflet layer.
+ *
+ * Home Assistant's `paths` API takes points and a colour and nothing else, so
+ * a path drawn through it can only ever be solid. Its `layers` property, on
+ * the other hand, adds any Leaflet layer straight to the map, which does
+ * support a dash. That is the only way to make the bearing visually distinct
+ * from the trail rather than merely a different colour.
+ *
+ * Returns null when Leaflet is not reachable, so the caller can fall back to
+ * a solid path instead of losing the line altogether.
+ *
+ * @param {object | null} leaflet The Leaflet module, from the map element
+ * @param {[number, number] | null} from
+ * @param {[number, number] | null} to
+ * @param {string} color
+ */
+export function bearingLayer(leaflet, from, to, color) {
+  if (!leaflet || typeof leaflet.polyline !== 'function') return null
+  if (!from || !to) return null
+  if (from[0] === to[0] && from[1] === to[1]) return null
+  return leaflet.polyline([from, to], {
+    color,
+    weight: 2.5,
+    opacity: 0.9,
+    dashArray: '6 7',
+    interactive: false
+  })
+}
