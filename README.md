@@ -8,27 +8,41 @@ needs.
 
 ## Install
 
-### HACS
+### With HACS
 
-1. In Home Assistant, open **HACS**.
-2. Search for **Tesla Card** and open it.
-3. Choose **Download**.
-4. Reload your browser.
+This card is not in the HACS default store, so add it as a custom repository.
 
-If the card is not listed yet, add this repository manually: **HACS → ⋮ → Custom repositories**,
-URL `https://github.com/alexluckett/tesla-card`, type **Dashboard**.
+1. **HACS → ⋮ (top right) → Custom repositories**
+2. Repository: `https://github.com/alexluckett/tesla-card`
+3. Type: **Dashboard**, then **Add**
+4. Open **Tesla Card** from the list and choose **Download**
+5. Restart Home Assistant, then hard-reload your browser (Ctrl/Cmd + Shift + R)
 
-The download contains a built file. There is nothing to compile.
+HACS downloads the built file to `config/www/community/tesla-card/` and serves it from
+`/hacsfiles/tesla-card/tesla-card.js`. There is nothing to compile.
 
-### Manually
+If your dashboards run in **storage mode** — the default, where you edit them through the UI —
+HACS registers that resource for you. In **YAML mode** it cannot, so add it yourself under
+`lovelace:` in `configuration.yaml`:
+
+```yaml
+lovelace:
+  resources:
+    - url: /hacsfiles/tesla-card/tesla-card.js
+      type: module
+```
+
+### Without HACS
 
 Download `tesla-card.js` from the [latest release][releases] into `config/www/`, then add it
-under **Settings → Dashboards → ⋮ → Resources**:
+under **Settings → Dashboards → ⋮ → Resources** with URL `/local/tesla-card.js` and type
+**JavaScript module**.
 
-| Field | Value |
-| --- | --- |
-| URL | `/local/tesla-card.js` |
-| Type | JavaScript module |
+### If the card does not appear
+
+Almost always a stale browser cache or a missing resource. Hard-reload first. If it still says
+`Custom element doesn't exist: tesla-fleet-card`, check the resource is listed under
+**Settings → Dashboards → ⋮ → Resources**.
 
 ## Use it
 
