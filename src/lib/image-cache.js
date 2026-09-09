@@ -17,6 +17,13 @@ const DB_VERSION = 1
 const STORE = 'renders'
 
 /**
+ * A render is a few tens of kilobytes. Anything smaller is a truncated
+ * response or an error page, and must never reach the store: a cache keyed by
+ * configuration would serve it back forever.
+ */
+const MIN_BYTES = 512
+
+/**
  * @param {object} [deps] Injection points, so the logic is testable without a
  *   browser. Defaults use the real IndexedDB and fetch.
  */
@@ -48,10 +55,18 @@ export function createImageCache(deps = {}) {
 
     const work = (async () => {
       let blob = await read(url).catch(() => null)
+      if (blob && !usable(blob)) {
+        // Something unusable was stored by an earlier version or a bad
+        // response; drop it rather than serve it again.
+        blob = null
+        await drop(url).catch(() => {})
+      }
       if (!blob) {
         blob = await fetchImage(url).catch(() => null)
-        // A failed write is not worth failing the render over.
-        if (blob) await write(url, blob).catch(() => {})
+        // Only a real image is worth keeping. A failed write is not worth
+        // failing the render over.
+        if (blob && usable(blob)) await write(url, blob).catch(() => {})
+        if (blob && !usable(blob)) blob = null
       }
       if (!blob) return null
       const objectUrl = createObjectUrl(blob)
@@ -92,6 +107,23 @@ export function createImageCache(deps = {}) {
     }
   }
 
+  /**
+   * Forget one render entirely, so the next resolve goes back to the network.
+   * Used when the browser cannot decode what was stored, which would
+   * otherwise leave the card permanently blank.
+   *
+   * @param {string} url
+   */
+  async function evict(url) {
+    const objectUrl = issued.get(url)
+    if (objectUrl) {
+      revokeObjectUrl(objectUrl)
+      issued.delete(url)
+    }
+    inFlight.delete(url)
+    await drop(url).catch(() => {})
+  }
+
   /** Release every object URL. Called when the card leaves the DOM. */
   function release() {
     for (const objectUrl of issued.values()) revokeObjectUrl(objectUrl)
@@ -104,13 +136,19 @@ export function createImageCache(deps = {}) {
     return get(db, url)
   }
 
+  async function drop(url) {
+    const db = await openDatabase()
+    if (!db) return
+    return remove(db, [url])
+  }
+
   async function write(url, blob) {
     const db = await openDatabase()
     if (!db) return
     return put(db, url, blob)
   }
 
-  return { resolve, prune, release }
+  return { resolve, prune, release, evict }
 }
 
 // ---------------------------------------------------------------- IndexedDB
@@ -135,9 +173,44 @@ function defaultOpenDatabase() {
   })
 }
 
+/**
+ * Decide what to do when the browser refuses to display a render.
+ *
+ * A stored copy that will not decode must be thrown away and fetched again,
+ * or the card stays blank for as long as the configuration is unchanged.
+ * A fresh copy that fails is a real failure and should be reported.
+ *
+ * @param {string} shown The src the img was given
+ * @param {string | null} remote The canonical URL for this configuration
+ * @param {Set<string>} retried Renders already refetched once
+ * @returns {'retry' | 'give-up'}
+ */
+export function imageErrorAction(shown, remote, retried) {
+  if (!remote) return 'give-up'
+  const wasStoredCopy = shown !== remote
+  if (wasStoredCopy && !retried.has(remote)) return 'retry'
+  return 'give-up'
+}
+
+/**
+ * A blob worth storing: an image, and big enough to be a real render rather
+ * than an error page that happened to arrive with a 200.
+ *
+ * @param {{ size?: number, type?: string }} blob
+ */
+export function usable(blob) {
+  if (!blob || typeof blob.size !== 'number') return false
+  if (blob.size < MIN_BYTES) return false
+  return typeof blob.type === 'string' && blob.type.startsWith('image/')
+}
+
 async function defaultFetchImage(url) {
   const response = await fetch(url, { mode: 'cors', credentials: 'omit' })
   if (!response.ok) throw new Error(`image request failed: ${response.status}`)
+  // An intercepting proxy can answer 200 with an HTML page. Storing that
+  // would poison the cache for this configuration permanently.
+  const type = response.headers?.get?.('content-type') ?? ''
+  if (!type.startsWith('image/')) throw new Error(`not an image: ${type || 'no content-type'}`)
   return response.blob()
 }
 

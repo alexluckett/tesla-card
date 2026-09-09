@@ -14,7 +14,7 @@ import {
 import { resolveEntities, lastUpdated, teslaVehicleDevices, stateOf } from './lib/entities.js'
 import { readVehicle, minutesSince, formatAge, ASLEEP, CHARGING, DRIVING } from './lib/state.js'
 import { ICONS } from './icons.js'
-import { createImageCache } from './lib/image-cache.js'
+import { createImageCache, imageErrorAction } from './lib/image-cache.js'
 
 const LOW_CHARGE = 20
 /** How much history the trail draws behind the car. */
@@ -39,6 +39,8 @@ export class TeslaFleetCard extends LitElement {
     this._trailFor = null
     this._cachedSrc = null
     this._cachedFor = null
+    /** Renders already retried from the network, so a bad one cannot loop. */
+    this._retried = new Set()
     // Tesla serve the render with max-age=60, so without this the browser
     // re-downloads it every minute a dashboard stays open.
     this._images = createImageCache()
@@ -246,9 +248,7 @@ export class TeslaFleetCard extends LitElement {
         alt=${identity?.name ?? 'Tesla'}
         style=${imgStyle}
         loading="lazy"
-        @error=${() => {
-          this._imageFailed = true
-        }}
+        @error=${() => this._onImageError(src, remote)}
       />
     </div>`
   }
@@ -271,6 +271,29 @@ export class TeslaFleetCard extends LitElement {
   }
 
   /**
+   * A stored render the browser cannot decode must not blank the card for
+   * good. Throw that copy away and go back to the network once; only give up
+   * if the fresh one fails too.
+   *
+   * @param {string} shown The src that failed
+   * @param {string | null} remote The canonical Tesla URL for this config
+   */
+  _onImageError(shown, remote) {
+    if (imageErrorAction(shown, remote, this._retried) === 'retry') {
+      this._retried.add(remote)
+      this._images.evict(remote).then(() => {
+        if (this._cachedFor !== remote) return
+        this._cachedSrc = null
+        this._images.resolve(remote).then((src) => {
+          if (this._cachedFor === remote) this._cachedSrc = src
+        })
+      })
+      return
+    }
+    this._imageFailed = true
+  }
+
+  /**
    * Keep one stored render per configuration. The URL already encodes every
    * option, so a change of paint, wheels, angle or vehicle is a new key and
    * the old one is evicted.
@@ -281,6 +304,7 @@ export class TeslaFleetCard extends LitElement {
     if (this._cachedFor === remote) return
     this._cachedFor = remote
     this._cachedSrc = null
+    this._imageFailed = false
     if (!remote || this._config.image) return
     this._images.resolve(remote).then((src) => {
       if (this._cachedFor !== remote) return

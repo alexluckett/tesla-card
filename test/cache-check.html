@@ -8,6 +8,11 @@
     <script type="module">
       // Counts every request that leaves the page, so re-render churn shows up.
       window.__hits = []
+      // Built from the same rules the card uses, so it is the real cache key.
+      const POISON_KEY =
+        'https://static-assets.tesla.com/configurator/compositor?context=design_studio_2' +
+        '&model=my&view=FRONT34&size=1400&bkba_opt=1&overlay=0' +
+        '&options=' + encodeURIComponent('$MTY86,$PN01,$WY19P,$IPB12,$DRRH')
       const realFetch = window.fetch
       window.fetch = (...args) => {
         window.__hits.push(String(args[0]))
@@ -68,6 +73,22 @@
       }
       const settle = () => until(() => false, 120)
 
+      // Poison the store the way a bad response or an aborted download would:
+      // a blob the browser cannot decode, sitting under the current key.
+      await new Promise((done) => {
+        const open = indexedDB.open('tesla-card', 1)
+        open.onupgradeneeded = () => open.result.createObjectStore('renders')
+        open.onsuccess = () => {
+          const db = open.result
+          const tx = db.transaction('renders', 'readwrite')
+          const bad = new Blob([new Uint8Array(90000)], { type: 'image/png' })
+          tx.objectStore('renders').put(bad, POISON_KEY)
+          tx.oncomplete = () => done()
+          tx.onerror = () => done()
+        }
+        open.onerror = () => done()
+      })
+
       const card = document.createElement('tesla-fleet-card')
       card.setConfig({ device_id: DEVICE, paint: 'stealth_grey', wheels: 'crossflow_19' })
       card.hass = hass(71)
@@ -94,8 +115,11 @@
       await settle()
       const afterPaintChange = window.__hits.length
 
+      const img = card.shadowRoot.querySelector('.hero img')
+      const recovered = Boolean(img && img.getAttribute('src'))
       done(
-        `first render: ${afterFirst}\n` +
+        `poisoned key recovered: ${recovered}\n` +
+          `first render: ${afterFirst}\n` +
           `after 50 re-renders: ${afterChurn} (added ${afterChurn - afterFirst})\n` +
           `after paint change: ${afterPaintChange} (added ${afterPaintChange - afterChurn})\n` +
           `urls: ${[...new Set(window.__hits)].length} unique`
