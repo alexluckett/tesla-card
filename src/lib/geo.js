@@ -89,6 +89,9 @@ export function currentJourney(points, gapMs = 25 * 60 * 1000) {
   return journey.length >= 2 ? journey : []
 }
 
+/** Dash and gap. Their sum is the distance one full cycle travels. */
+export const DASH = [5, 7]
+
 /**
  * A dashed line from the car to its destination, as a Leaflet layer.
  *
@@ -112,9 +115,9 @@ export function bearingLayer(leaflet, from, to, color) {
   if (from[0] === to[0] && from[1] === to[1]) return null
   return leaflet.polyline([from, to], {
     color,
-    weight: 2.5,
-    opacity: 0.9,
-    dashArray: '6 7',
+    weight: 2,
+    opacity: 0.85,
+    dashArray: DASH.join(' '),
     interactive: false
   })
 }
@@ -122,9 +125,9 @@ export function bearingLayer(leaflet, from, to, color) {
 /** How far along the line the arrowhead sits, clear of both markers. */
 const ARROW_AT = 0.66
 /** Barb length as a fraction of the line, so it scales with the journey. */
-const ARROW_SIZE = 0.13
+const ARROW_SIZE = 0.07
 /** Half the angle between the barbs. */
-const ARROW_SPREAD = 0.42
+const ARROW_SPREAD = 0.46
 
 /**
  * The two coordinates of an arrowhead pointing along a bearing.
@@ -178,10 +181,34 @@ export function bearingArrow(leaflet, from, to, color) {
   if (!points) return null
   return leaflet.polyline(points, {
     color,
-    weight: 2.5,
-    opacity: 0.9,
+    weight: 1.8,
+    opacity: 0.75,
     lineCap: 'round',
     lineJoin: 'round',
     interactive: false
+  })
+}
+
+/**
+ * Send the dashes travelling towards the destination.
+ *
+ * Leaflet draws a polyline as an SVG path inside the map's own shadow root,
+ * where this card's stylesheet cannot reach. The Web Animations API works on
+ * the element directly, so it needs no stylesheet at all.
+ *
+ * Shifting the offset by exactly one dash cycle makes the loop seamless.
+ *
+ * @param {SVGElement | null | undefined} element
+ * @param {boolean} reduceMotion
+ * @returns {Animation | null}
+ */
+export function driftDashes(element, reduceMotion = false) {
+  if (!element || reduceMotion) return null
+  if (typeof element.animate !== 'function') return null
+  const cycle = DASH[0] + DASH[1]
+  return element.animate([{ strokeDashoffset: 0 }, { strokeDashoffset: -cycle }], {
+    duration: 900,
+    iterations: Infinity,
+    easing: 'linear'
   })
 }

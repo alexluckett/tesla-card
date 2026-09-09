@@ -20,6 +20,7 @@ export default [
         fetch: 'readonly',
         getComputedStyle: 'readonly',
         requestAnimationFrame: 'readonly',
+        Animation: 'readonly',
         Blob: 'readonly'
       }
     },

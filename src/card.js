@@ -16,7 +16,14 @@ import { readVehicle, minutesSince, formatAge, ASLEEP, CHARGING, DRIVING } from 
 import { ICONS } from './icons.js'
 import { createImageCache, imageErrorAction } from './lib/image-cache.js'
 import { display, resolvePreference } from './lib/units.js'
-import { coordsOf, bearingPath, bearingLayer, bearingArrow, currentJourney } from './lib/geo.js'
+import {
+  coordsOf,
+  bearingPath,
+  bearingLayer,
+  bearingArrow,
+  driftDashes,
+  currentJourney
+} from './lib/geo.js'
 import { shortenPlace, arrivalIn } from './lib/text.js'
 import { mapMode, shouldShowMap, MAP_ALWAYS } from './lib/config.js'
 
@@ -661,6 +668,7 @@ export class TeslaFleetCard extends LitElement {
       this._bearingFor = key
       const line = bearingLayer(this._leaflet, from, to, colour)
       const arrow = line ? bearingArrow(this._leaflet, from, to, colour) : null
+      this._bearingLine = line
       this._bearingLayer = [line, arrow].filter(Boolean)
     }
     return this._bearingLayer?.length ? this._bearingLayer : null
@@ -671,12 +679,30 @@ export class TeslaFleetCard extends LitElement {
    * so it is picked up once available and the card re-rendered to use it.
    */
   updated() {
-    if (this._leaflet) return
-    const map = this.shadowRoot?.querySelector('ha-map')
-    const leaflet = map?.Leaflet
-    if (leaflet) {
-      this._leaflet = leaflet
-      this.requestUpdate()
+    if (!this._leaflet) {
+      const map = this.shadowRoot?.querySelector('ha-map')
+      const leaflet = map?.Leaflet
+      if (leaflet) {
+        this._leaflet = leaflet
+        this.requestUpdate()
+      }
+      return
+    }
+    // The path only exists once the map has added the layer, which happens
+    // after this card renders, so the drift is started here rather than when
+    // the layer is built.
+    const path = this._bearingLine?.getElement?.()
+    if (path && !path.dataset.drifting) {
+      path.dataset.drifting = 'yes'
+      driftDashes(path, this._reduceMotion())
+    }
+  }
+
+  _reduceMotion() {
+    try {
+      return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    } catch {
+      return false
     }
   }
 

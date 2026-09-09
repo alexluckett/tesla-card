@@ -67,8 +67,25 @@
                     window.__polylines = []
                     this.Leaflet = {
                       polyline: (points, opts) => {
-                        window.__polylines.push({ points, opts })
-                        return { __layer: true }
+                        // Leaflet puts its paths in an SVG overlay inside the
+                        // map. A detached element is not animated at all, so
+                        // the stand-in has to attach them too.
+                        let svg = document.getElementById('stub-overlay')
+                        if (!svg) {
+                          svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+                          svg.id = 'stub-overlay'
+                          svg.setAttribute('width', '1')
+                          svg.setAttribute('height', '1')
+                          document.body.append(svg)
+                        }
+                        const path = document.createElementNS(
+                          'http://www.w3.org/2000/svg',
+                          'path'
+                        )
+                        svg.append(path)
+                        const layer = { __layer: true, getElement: () => path }
+                        window.__polylines.push({ points, opts, path })
+                        return layer
                       }
                     }
                   }
@@ -172,6 +189,17 @@
       const drawn = window.__polylines || []
       say(`polylines Leaflet was asked for: ${drawn.length}`)
       if (drawn.length) say(`dashArray: ${JSON.stringify(drawn[0].opts.dashArray)}`)
+      say(`card has leaflet: ${Boolean(card._leaflet)}`)
+      say(`card has a bearing line: ${Boolean(card._bearingLine)}`)
+      say(`getElement returns: ${Boolean(card._bearingLine?.getElement?.())}`)
+      say(`drifting flag: ${card._bearingLine?.getElement?.()?.dataset?.drifting}`)
+      const anims = drawn[0]?.path?.getAnimations?.() || []
+      say(`animations on the bearing path: ${anims.length}`)
+      if (anims.length) {
+        const kf = anims[0].effect.getKeyframes()
+        say(`  offsets ${kf[0].strokeDashoffset} -> ${kf[kf.length - 1].strokeDashoffset}`)
+        say(`  ${anims[0].playState}, iterations ${anims[0].effect.getTiming().iterations}`)
+      }
 
       const pre = document.createElement('pre')
       pre.id = 'result'

@@ -6,6 +6,8 @@ import {
   bearingLayer,
   bearingArrow,
   arrowPoints,
+  driftDashes,
+  DASH,
   currentJourney
 } from '../src/lib/geo.js'
 
@@ -136,7 +138,7 @@ describe('bearingLayer', () => {
     const layer = bearingLayer(L, CAR2, DEST2, '#888')
     assert.ok(layer)
     assert.deepEqual(L.calls[0].points, [CAR2, DEST2])
-    assert.equal(L.calls[0].opts.dashArray, '6 7')
+    assert.equal(L.calls[0].opts.dashArray, DASH.join(' '))
     assert.equal(L.calls[0].opts.color, '#888')
     assert.equal(L.calls[0].opts.interactive, false)
   })
@@ -222,5 +224,40 @@ describe('bearingArrow', () => {
 
   test('is null without Leaflet', () => {
     assert.equal(bearingArrow(null, [51, 0], [52, 0], '#888'), null)
+  })
+})
+
+describe('driftDashes', () => {
+  const fakeEl = () => {
+    const runs = []
+    return { runs, animate: (frames, opts) => (runs.push({ frames, opts }), { __anim: true }) }
+  }
+
+  test('sends the dashes one full cycle, so the loop is seamless', () => {
+    // Any other distance and the pattern visibly jumps on each repeat.
+    const el = fakeEl()
+    assert.ok(driftDashes(el))
+    const { frames, opts } = el.runs[0]
+    assert.equal(frames[0].strokeDashoffset, 0)
+    assert.equal(frames[1].strokeDashoffset, -(DASH[0] + DASH[1]))
+    assert.equal(opts.iterations, Infinity)
+    assert.equal(opts.easing, 'linear')
+  })
+
+  test('travels towards the destination, not away from it', () => {
+    const el = fakeEl()
+    driftDashes(el)
+    assert.ok(el.runs[0].frames[1].strokeDashoffset < 0, 'a negative offset moves along the path')
+  })
+
+  test('does nothing when reduced motion is asked for', () => {
+    const el = fakeEl()
+    assert.equal(driftDashes(el, true), null)
+    assert.equal(el.runs.length, 0, 'the arrowhead carries the direction instead')
+  })
+
+  test('does nothing without an element that can animate', () => {
+    assert.equal(driftDashes(null), null)
+    assert.equal(driftDashes({}), null)
   })
 })
