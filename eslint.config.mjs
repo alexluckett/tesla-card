@@ -14,7 +14,11 @@ export default [
         URLSearchParams: 'readonly',
         console: 'readonly',
         setTimeout: 'readonly',
-        clearTimeout: 'readonly'
+        clearTimeout: 'readonly',
+        queueMicrotask: 'readonly',
+        indexedDB: 'readonly',
+        fetch: 'readonly',
+        Blob: 'readonly'
       }
     },
     rules: {

@@ -148,6 +148,15 @@ carries model and option codes only — never your VIN, your location or anythin
 account. No other external request is made. The map uses whatever tiles Home Assistant is
 already configured with.
 
+The render is fetched **once per configuration** and kept in the browser, so a dashboard left
+open does not keep pulling it. Tesla serve the image with `cache-control: max-age=60`, which
+would otherwise mean a fresh download every minute for as long as the page is up. The stored
+copy is keyed by the image URL, so changing paint, wheels, angle or vehicle fetches once more
+and evicts the old one; nothing else does. It also means the car still appears when Tesla is
+unreachable.
+
+To clear it, clear your browser's site data for Home Assistant.
+
 ## Building it yourself
 
 You do not need to; releases ship built. If you want to:

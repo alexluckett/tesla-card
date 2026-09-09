@@ -1,0 +1,105 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>cache check</title>
+  </head>
+  <body>
+    <script type="module">
+      // Counts every request that leaves the page, so re-render churn shows up.
+      window.__hits = []
+      const realFetch = window.fetch
+      window.fetch = (...args) => {
+        window.__hits.push(String(args[0]))
+        return realFetch(...args)
+      }
+      const done = (msg) => {
+        const el = document.createElement('pre')
+        el.id = 'result'
+        el.textContent = msg
+        document.body.append(el)
+        console.log('[check] ' + msg.replace(/\n/g, ' | '))
+      }
+
+      if (!customElements.get('ha-card')) {
+        customElements.define('ha-card', class extends HTMLElement {})
+      }
+      await import('../dist/tesla-card.js')
+
+      const DEVICE = 'dev_my'
+      const KEYS = {
+        battery: 'charge_state_battery_level',
+        range: 'charge_state_battery_range',
+        chargingState: 'charge_state_charging_state',
+        online: 'state',
+        locked: 'vehicle_state_locked'
+      }
+      const hass = (battery) => {
+        const entities = {}
+        const states = {}
+        for (const [name, key] of Object.entries(KEYS)) {
+          const id = `sensor.y_${name}`
+          entities[id] = { entity_id: id, device_id: DEVICE, platform: 'tesla_fleet', translation_key: key }
+          states[id] = {
+            entity_id: id,
+            state: name === 'battery' ? String(battery) : name === 'online' ? 'on' : name === 'locked' ? 'locked' : '198',
+            attributes: {},
+            last_updated: new Date().toISOString()
+          }
+        }
+        return {
+          entities,
+          states,
+          devices: { [DEVICE]: { id: DEVICE, name: 'Model Y', model: 'Model Y', serial_number: '7SAYGDEF9TA123456' } },
+          config: { country: 'GB' },
+          locale: { language: 'en-GB' }
+        }
+      }
+
+      const tick = () => new Promise((r) => setTimeout(r, 20))
+      // Wait on a real condition, not the clock: headless Chrome fast-forwards
+      // timers, so a sleep would elapse before the network ever replied.
+      async function until(fn, tries = 1500) {
+        for (let i = 0; i < tries; i++) {
+          if (fn()) return true
+          await tick()
+        }
+        return false
+      }
+      const settle = () => until(() => false, 120)
+
+      const card = document.createElement('tesla-fleet-card')
+      card.setConfig({ device_id: DEVICE, paint: 'stealth_grey', wheels: 'crossflow_19' })
+      card.hass = hass(71)
+      document.body.append(card)
+
+      // Let the first render settle and the cache fill.
+      await until(() => card._cachedSrc !== null)
+      await settle()
+      const afterFirst = window.__hits.length
+
+      // Now behave like a live dashboard: many unrelated state updates.
+      for (let i = 0; i < 50; i++) {
+        card.hass = hass(60 + (i % 7))
+        await card.updateComplete
+      }
+      await settle()
+      const afterChurn = window.__hits.length
+
+      // Change the paint: a different configuration must fetch once more.
+      card.setConfig({ device_id: DEVICE, paint: 'ultra_red', wheels: 'crossflow_19' })
+      card.hass = hass(71)
+      await card.updateComplete
+      await until(() => window.__hits.length > afterChurn)
+      await settle()
+      const afterPaintChange = window.__hits.length
+
+      done(
+        `first render: ${afterFirst}\n` +
+          `after 50 re-renders: ${afterChurn} (added ${afterChurn - afterFirst})\n` +
+          `after paint change: ${afterPaintChange} (added ${afterPaintChange - afterChurn})\n` +
+          `urls: ${[...new Set(window.__hits)].length} unique`
+      )
+    </script>
+  </body>
+</html>

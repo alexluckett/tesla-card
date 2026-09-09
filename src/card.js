@@ -14,6 +14,7 @@ import {
 import { resolveEntities, lastUpdated, teslaVehicleDevices, stateOf } from './lib/entities.js'
 import { readVehicle, minutesSince, formatAge, ASLEEP, CHARGING, DRIVING } from './lib/state.js'
 import { ICONS } from './icons.js'
+import { createImageCache } from './lib/image-cache.js'
 
 const LOW_CHARGE = 20
 /** How much history the trail draws behind the car. */
@@ -24,7 +25,8 @@ export class TeslaFleetCard extends LitElement {
     hass: { attribute: false },
     _config: { state: true },
     _imageFailed: { state: true },
-    _trail: { state: true }
+    _trail: { state: true },
+    _cachedSrc: { state: true }
   }
 
   static styles = styles
@@ -35,6 +37,11 @@ export class TeslaFleetCard extends LitElement {
     this._trail = null
     this._unsubscribeHistory = null
     this._trailFor = null
+    this._cachedSrc = null
+    this._cachedFor = null
+    // Tesla serve the render with max-age=60, so without this the browser
+    // re-downloads it every minute a dashboard stays open.
+    this._images = createImageCache()
   }
 
   setConfig(config) {
@@ -55,6 +62,9 @@ export class TeslaFleetCard extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback()
     this._stopHistory()
+    this._images.release()
+    this._cachedSrc = null
+    this._cachedFor = null
   }
 
   /** Masonry sizing. One unit is 50px. */
@@ -213,7 +223,11 @@ export class TeslaFleetCard extends LitElement {
   }
 
   _hero(identity, vehicle) {
-    const src = this._imageSource(identity, vehicle)
+    const remote = this._imageSource(identity, vehicle)
+    this._syncImage(remote)
+    // Show Tesla's URL until the stored copy is ready, so the first paint is
+    // never delayed by the cache.
+    const src = this._cachedFor === remote && this._cachedSrc ? this._cachedSrc : remote
     if (!src) {
       return html`<div class="hero blank">
         ${
@@ -253,6 +267,25 @@ export class TeslaFleetCard extends LitElement {
       hand: this._hand(),
       view: this._config.view,
       optionsOverride: this._config.options_override ?? null
+    })
+  }
+
+  /**
+   * Keep one stored render per configuration. The URL already encodes every
+   * option, so a change of paint, wheels, angle or vehicle is a new key and
+   * the old one is evicted.
+   *
+   * @param {string | null} remote
+   */
+  _syncImage(remote) {
+    if (this._cachedFor === remote) return
+    this._cachedFor = remote
+    this._cachedSrc = null
+    if (!remote || this._config.image) return
+    this._images.resolve(remote).then((src) => {
+      if (this._cachedFor !== remote) return
+      this._cachedSrc = src
+      this._images.prune([remote])
     })
   }
 
