@@ -477,8 +477,11 @@ export class TeslaFleetCard extends LitElement {
         )
       : null
     if (bearing) paths.push(bearing)
+    // No hass property: ha-map takes states, config and connection from Lit
+    // contexts the dashboard provides, and those requests cross this card's
+    // shadow boundary on their own. Home Assistant's own map card passes the
+    // same set and no hass either.
     return html`<ha-map
-      .hass=${this.hass}
       .entities=${points}
       .paths=${paths}
       .themeMode=${'auto'}

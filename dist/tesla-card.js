@@ -342,7 +342,6 @@ const t=globalThis,e=t.ShadowRoot&&(void 0===t.ShadyCSS||t.ShadyCSS.nativeShadow
       </div>`}return t.zone?F`<div class="place">
       <span class="lead zone">${Dt.pin}${t.zone}</span>
     </div>`:V}_map(t,e){if(!customElements.get("ha-map"))return V;const i=[t.location,t.route].filter(Boolean),n=[],s=function(t,e=15e5){if(!Array.isArray(t)||t.length<2)return[];const i=t.filter(t=>t?.timestamp instanceof Date&&!Number.isNaN(t.timestamp.getTime())).sort((t,e)=>t.timestamp-e.timestamp);if(i.length<2)return[];let n=0;for(let t=i.length-1;t>0;t--)if(i[t].timestamp-i[t-1].timestamp>e){n=t;break}const s=i.slice(n);return s.length>=2?s:[]}(this._trail??[]);s.length>1&&n.push({points:s,color:this._cssColor("--tc-accent","#03a9f4"),gradualOpacity:.8});const r=e?function(t,e,i){if(!t||!e)return null;if(t[0]===e[0]&&t[1]===e[1])return null;const n=new Date;return{points:[{point:t,timestamp:n},{point:e,timestamp:n}],color:i,name:"Direct line to destination"}}(se(this.hass,t.location),se(this.hass,t.route),this._cssColor("--tc-dim","#9b9b9b")):null;return r&&n.push(r),F`<ha-map
-      .hass=${this.hass}
       .entities=${i}
       .paths=${n}
       .themeMode=${"auto"}

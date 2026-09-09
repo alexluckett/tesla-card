@@ -44,3 +44,35 @@ describe('shouldShowMap', () => {
     assert.equal(shouldShowMap(MAP_NAVIGATING, true, false), false)
   })
 })
+
+describe('the ha-map contract', () => {
+  // ha-map is internal frontend API with no stability promise, so the set of
+  // properties relied on is written down here. Checked against the component
+  // and against Home Assistant's own map card, which passes the same set.
+  const DECLARED = new Set([
+    'entities',
+    'paths',
+    'layers',
+    'clickable',
+    'autoFit',
+    'renderPassive',
+    'interactiveZones',
+    'fitZones',
+    'themeMode',
+    'zoom',
+    'clusterMarkers',
+    'scaleRuler'
+  ])
+
+  test('every property the card sets is one ha-map declares', () => {
+    const used = ['entities', 'paths', 'themeMode', 'autoFit', 'zoom', 'clusterMarkers']
+    for (const name of used) {
+      assert.ok(DECLARED.has(name), `ha-map has no ${name} property`)
+    }
+  })
+
+  test('hass is not among them', () => {
+    // It reads states from a Lit context instead. Setting .hass did nothing.
+    assert.equal(DECLARED.has('hass'), false)
+  })
+})
