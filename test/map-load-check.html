@@ -1,0 +1,159 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>lazy ha-map check</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        background: #111;
+        font:
+          13px Roboto,
+          sans-serif;
+        color: #9b9b9b;
+        --primary-text-color: #e1e1e1;
+        --secondary-text-color: #9b9b9b;
+        --divider-color: rgba(225, 225, 225, 0.12);
+        --primary-color: #03a9f4;
+        --warning-color: #ffa726;
+        --success-color: #43a047;
+        --card-background-color: #1c1c1c;
+        --ha-card-background: #1c1c1c;
+      }
+      tesla-fleet-card {
+        display: block;
+        width: 440px;
+      }
+    </style>
+  </head>
+  <body>
+    <script type="module">
+      const log = []
+      const say = (m) => {
+        log.push(m)
+        console.log('[lazy] ' + m)
+      }
+
+      if (!customElements.get('ha-card')) {
+        customElements.define(
+          'ha-card',
+          class extends HTMLElement {
+            connectedCallback() {
+              this.style.cssText =
+                'display:block;background:var(--ha-card-background);border:1px solid var(--divider-color);border-radius:12px;'
+            }
+          }
+        )
+      }
+
+      // Home Assistant, as a dashboard with no Map card on it: ha-map is not
+      // registered, and loadCardHelpers is the only way to ask for it.
+      let helperCalled = false
+      window.loadCardHelpers = async () => {
+        helperCalled = true
+        say('loadCardHelpers() was called')
+        return {
+          createCardElement: async (config) => {
+            say(`createCardElement({type: "${config.type}"})`)
+            // This is what importing hui-map-card does in the real frontend.
+            if (!customElements.get('ha-map')) {
+              customElements.define(
+                'ha-map',
+                class extends HTMLElement {
+                  connectedCallback() {
+                    this.style.cssText =
+                      'display:block;height:100%;background:#26303a;border-radius:10px'
+                    this.textContent = ''
+                  }
+                }
+              )
+              say('ha-map registered by the import')
+            }
+            return document.createElement('div')
+          }
+        }
+      }
+
+      await import('../dist/tesla-card.js')
+
+      const DEVICE = 'dev_my'
+      const KEYS = {
+        battery: 'sensor:charge_state_battery_level',
+        range: 'sensor:charge_state_battery_range',
+        chargingState: 'sensor:charge_state_charging_state',
+        online: 'binary_sensor:state',
+        locked: 'lock:vehicle_state_locked',
+        shiftState: 'sensor:drive_state_shift_state',
+        location: 'device_tracker:location'
+      }
+      const values = {
+        battery: { state: '71' },
+        range: { state: '198', attributes: { unit_of_measurement: 'mi' } },
+        chargingState: { state: 'disconnected' },
+        online: { state: 'on' },
+        locked: { state: 'locked' },
+        shiftState: { state: 'p' },
+        location: { state: 'not_home', attributes: { latitude: 51.5074, longitude: -0.1278 } }
+      }
+      const entities = {}
+      const states = {}
+      for (const [name, v] of Object.entries(values)) {
+        const [domain, key] = KEYS[name].split(':')
+        const id = `${domain}.y_${name}`
+        entities[id] = {
+          entity_id: id,
+          device_id: DEVICE,
+          platform: 'tesla_fleet',
+          translation_key: key
+        }
+        states[id] = {
+          entity_id: id,
+          state: v.state,
+          attributes: v.attributes ?? {},
+          last_updated: new Date().toISOString()
+        }
+      }
+      const hass = {
+        entities,
+        states,
+        devices: {
+          [DEVICE]: {
+            id: DEVICE,
+            name: 'Model Y',
+            model: 'Model Y',
+            serial_number: '7SAYGDEF9TA123456'
+          }
+        },
+        config: { country: 'GB' },
+        locale: { language: 'en-GB' }
+      }
+
+      say(`ha-map defined before render: ${Boolean(customElements.get('ha-map'))}`)
+
+      const card = document.createElement('tesla-fleet-card')
+      card.setConfig({ device_id: DEVICE, map: 'always', units: 'imperial' })
+      card.hass = hass
+      document.body.append(card)
+      await card.updateComplete
+
+      say(`map in the card on first paint: ${Boolean(card.shadowRoot.querySelector('ha-map'))}`)
+
+      // Give the async load and the follow-up render a chance.
+      for (let i = 0; i < 200; i++) {
+        if (card.shadowRoot.querySelector('ha-map')) break
+        await new Promise((r) => setTimeout(r, 20))
+      }
+
+      const present = Boolean(card.shadowRoot.querySelector('ha-map'))
+      say(`helper used: ${helperCalled}`)
+      say(`map in the card after loading: ${present}`)
+      say(`RESULT: ${present ? 'map appears' : 'STILL MISSING'}`)
+
+      const pre = document.createElement('pre')
+      pre.id = 'result'
+      pre.textContent = log.join('\n')
+      document.body.append(pre)
+    </script>
+  </body>
+</html>

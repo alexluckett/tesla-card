@@ -117,6 +117,11 @@ Tesla does not publish the road route, so nothing on the map pretends to be one.
 The map above is drawn from the coordinates the card passes; Home Assistant renders the
 cartography itself, in your theme.
 
+Home Assistant loads its map component only when something asks for it, so the card requests it
+the first time it needs one. That means the map can appear a moment after the rest of the card
+on a dashboard that has no other map on it. If it never appears, the card says why underneath:
+the usual cause is the `Location` device tracker being disabled or not yet having reported.
+
 The destination comes from the car's own navigation, not from your zones, so it works for
 anywhere you drive: `Tesco Extra, Slough in 12 min` as readily as `Home in 20 min`. A full
 postal address is reduced to its first part — `42 Kingsway Avenue` rather than the whole

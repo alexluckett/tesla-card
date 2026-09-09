@@ -43,6 +43,7 @@ export class TeslaFleetCard extends LitElement {
     this._trailFor = null
     this._cachedSrc = null
     this._cachedFor = null
+    this._mapLoading = false
     /** Renders already retried from the network, so a bad one cannot loop. */
     this._retried = new Set()
     // Tesla serve the render with max-age=60, so without this the browser
@@ -71,6 +72,7 @@ export class TeslaFleetCard extends LitElement {
     this._images.release()
     this._cachedSrc = null
     this._cachedFor = null
+    this._mapLoading = false
   }
 
   /** Masonry sizing. One unit is 50px. */
@@ -203,6 +205,8 @@ export class TeslaFleetCard extends LitElement {
     }
 
     const entities = resolveEntities(this.hass, deviceId)
+    // Kept so the notices can explain a missing map without re-resolving.
+    this._entities = entities
     const vehicle = readVehicle(this.hass, entities)
     const identity = decodeVin(device.serial_number) ?? identityFromModelName(device.model) ?? null
     const name =
@@ -453,7 +457,13 @@ export class TeslaFleetCard extends LitElement {
   }
 
   _map(entities, route) {
-    if (!customElements.get('ha-map')) return nothing
+    // Home Assistant only registers ha-map once something that uses it has
+    // been loaded, so a dashboard with no Map card on it has no ha-map at
+    // all. Ask for it rather than quietly dropping the map.
+    if (!customElements.get('ha-map')) {
+      this._loadMapComponent()
+      return nothing
+    }
     const points = [entities.location, entities.route].filter(Boolean)
     const paths = []
     // The map lives in its own shadow root, so a CSS variable would never
@@ -598,6 +608,15 @@ export class TeslaFleetCard extends LitElement {
           show your own.`
       )
     }
+    if (
+      mapMode(this._config.map) === MAP_ALWAYS &&
+      !coordsOf(this.hass, this._entities?.location)
+    ) {
+      notices.push(
+        html`The map needs a position. Check the <code>Location</code> device tracker on this
+          vehicle is enabled and has reported.`
+      )
+    }
     if (route && route.destinationEntityMissing) {
       notices.push(
         html`Enable the <code>Destination</code> entity on this device to see where the car is
@@ -606,6 +625,24 @@ export class TeslaFleetCard extends LitElement {
     }
     if (!notices.length) return nothing
     return html`${notices.map((notice) => html`<div class="notice">${notice}</div>`)}`
+  }
+
+  /**
+   * Pull in the map component. Creating a built-in map card loads the chunk
+   * that registers `ha-map`; nothing is added to the page, the import is the
+   * point.
+   */
+  async _loadMapComponent() {
+    if (this._mapLoading || customElements.get('ha-map')) return
+    this._mapLoading = true
+    try {
+      const helpers = await window.loadCardHelpers?.()
+      await helpers?.createCardElement({ type: 'map', entities: [] })
+      await customElements.whenDefined('ha-map')
+    } catch {
+      // Left undefined: the card carries on without a map rather than failing.
+    }
+    this.requestUpdate()
   }
 
   // ------------------------------------------------------------------ history

@@ -19,6 +19,7 @@ export default [
         indexedDB: 'readonly',
         fetch: 'readonly',
         getComputedStyle: 'readonly',
+        requestAnimationFrame: 'readonly',
         Blob: 'readonly'
       }
     },
