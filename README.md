@@ -116,8 +116,9 @@ Tesla does not publish the road route, so nothing on the map pretends to be one.
 
 ![Driving with the map showing the bearing to the destination](https://raw.githubusercontent.com/alexluckett/tesla-card/main/docs/map.png)
 
-The map above is drawn from the coordinates the card passes; Home Assistant renders the
-cartography itself, in your theme.
+The map above is drawn from the coordinates and paths the card passes, including a trail the
+card built from real history; Home Assistant renders the cartography itself, in your theme.
+At a ten-minute poll a trail is a handful of fixes joined up, not a smooth track.
 
 Left to itself, Home Assistant draws a map marker as a 48 pixel circle carrying the initials of
 the entity name, so a Tesla Model Y arrives as a large **TMY** badge. The card shrinks the

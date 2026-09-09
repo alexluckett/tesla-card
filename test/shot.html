@@ -165,7 +165,31 @@
                   <path d="M52 ${h} Q70 112 60 54" stroke="${casing}" stroke-width="8"/>
                   <path d="M52 ${h} Q70 112 60 54" stroke="${road}" stroke-width="4.5"/>
                 </g>
-                ${paths.map((p) => pathEl(p, '')).join('')}
+                ${paths
+                  .flatMap((p) => {
+                    if (!p.gradualOpacity) return [pathEl(p, '')]
+                    // ha-map draws each leg separately, fading towards the
+                    // oldest fix, and a dot at every point.
+                    const step = p.gradualOpacity / Math.max(p.points.length - 2, 1)
+                    const base = 1 - p.gradualOpacity
+                    const out = []
+                    for (let i = 0; i < p.points.length - 1; i++) {
+                      const o = (base + i * step).toFixed(3)
+                      out.push(
+                        pathEl(
+                          { points: [p.points[i], p.points[i + 1]], color: p.color },
+                          `stroke-width="3" opacity="${o}"`
+                        )
+                      )
+                      out.push(
+                        `<circle cx="${x(p.points[i].point[1]).toFixed(1)}"
+                          cy="${y(p.points[i].point[0]).toFixed(1)}" r="3"
+                          fill="${p.color}" opacity="${o}"/>`
+                      )
+                    }
+                    return out
+                  })
+                  .join('')}
                 ${(this._drawn || [])
                   .map((d) =>
                     pathEl(
@@ -236,7 +260,29 @@
           },
           config: { country: 'GB' },
           locale: { language: 'en-GB' },
-          callService: async () => {}
+          callService: async () => {},
+          connection: {
+            subscribeMessage: (cb, msg) => {
+              if (msg?.type === 'history/stream') {
+                const now = Math.floor(Date.now() / 1000)
+                // Five fixes eight minutes apart, which is about what a
+                // ten-minute poll gives you on a forty minute drive.
+                const track = [
+                  [51.44, -1.02],
+                  [51.452, -0.95],
+                  [51.465, -0.86],
+                  [51.475, -0.79],
+                  [51.487, -0.73]
+                ]
+                const states = track.map(([lat, lon], i) => ({
+                  a: { latitude: lat, longitude: lon },
+                  lu: now - (track.length - 1 - i) * 480
+                }))
+                queueMicrotask(() => cb({ states: { [msg.entity_ids[0]]: states } }))
+              }
+              return Promise.resolve(() => {})
+            }
+          }
         }
         window.__hass = hass
         return hass
@@ -266,8 +312,8 @@
         shiftState: { state: 'd' },
         speed: { state: '38', attributes: { unit_of_measurement: 'mph' } },
         locked: { state: 'unlocked' },
-        location: { state: 'not_home', attributes: { latitude: 51.44, longitude: -0.75 } },
-        route: { state: 'not_home', attributes: { latitude: 51.51, longitude: -0.62 } },
+        location: { state: 'not_home', attributes: { latitude: 51.487, longitude: -0.73 } },
+        route: { state: 'not_home', attributes: { latitude: 51.5074, longitude: -0.6 } },
         arrivalTime: { state: new Date(Date.now() + 20 * 60000).toISOString() },
         distanceToArrival: { state: '14', attributes: { unit_of_measurement: 'mi' } },
         destination: { state: 'Home' }
