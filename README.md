@@ -131,7 +131,7 @@ Tapping the card itself does nothing. Only buttons act.
 | `paint` | first for your body | Paint colour. Not reported by the integration. |
 | `wheels` | first for your body | Wheels. Not reported by the integration. |
 | `units` | `auto` | `auto` follows Home Assistant; `imperial` or `metric` pin it. |
-| `map` | `true` | Show a map while a route is set. |
+| `map` | `navigating` | `navigating`, `always` or `never`. |
 | `trail` | `true` | Draw where the car has been. |
 | `controls` | `false` | Show action buttons. |
 | `performance` | `false` | Needed before the larger wheels will render. |

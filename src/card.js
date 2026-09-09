@@ -18,6 +18,7 @@ import { createImageCache, imageErrorAction } from './lib/image-cache.js'
 import { display, resolvePreference } from './lib/units.js'
 import { coordsOf, bearingPath, currentJourney } from './lib/geo.js'
 import { shortenPlace, arrivalIn } from './lib/text.js'
+import { mapMode, shouldShowMap, MAP_ALWAYS } from './lib/config.js'
 
 const LOW_CHARGE = 20
 /** How much history the trail draws behind the car. */
@@ -56,7 +57,7 @@ export class TeslaFleetCard extends LitElement {
     this._config = {
       view: 'FRONT34',
       controls: false,
-      map: true,
+      map: 'navigating',
       trail: true,
       ...config
     }
@@ -74,13 +75,16 @@ export class TeslaFleetCard extends LitElement {
 
   /** Masonry sizing. One unit is 50px. */
   getCardSize() {
-    return this._showMap() ? 8 : 5
+    return mapMode(this._config?.map) === MAP_ALWAYS ? 8 : 5
   }
 
-  /** Sections sizing. A row is 56px with an 8px gap. */
+  /**
+   * Sections sizing. Rows are deliberately left undefined: the card grows
+   * when a route appears and shrinks again afterwards, so a fixed height
+   * would either clip the map or leave a gap where it used to be.
+   */
   getGridOptions() {
-    const rows = this._showMap() ? 8 : 5
-    return { rows, columns: 12, min_columns: 6, min_rows: 4 }
+    return { columns: 12, min_columns: 6 }
   }
 
   static getStubConfig(hass) {
@@ -119,7 +123,6 @@ export class TeslaFleetCard extends LitElement {
               name: '',
               flatten: true,
               schema: [
-                { name: 'map', selector: { boolean: {} } },
                 { name: 'trail', selector: { boolean: {} } },
                 { name: 'controls', selector: { boolean: {} } },
                 { name: 'performance', selector: { boolean: {} } }
@@ -129,6 +132,19 @@ export class TeslaFleetCard extends LitElement {
               name: 'view',
               selector: {
                 select: { mode: 'dropdown', options: VIEWS.map((v) => ({ value: v, label: v })) }
+              }
+            },
+            {
+              name: 'map',
+              selector: {
+                select: {
+                  mode: 'dropdown',
+                  options: [
+                    { value: 'navigating', label: 'Only while navigating' },
+                    { value: 'always', label: 'Always' },
+                    { value: 'never', label: 'Never' }
+                  ]
+                }
               }
             },
             {
@@ -194,7 +210,11 @@ export class TeslaFleetCard extends LitElement {
 
     const age = formatAge(minutesSince(lastUpdated(this.hass, entities)))
     const route = vehicle.route
-    const showMap = this._showMap() && Boolean(route) && Boolean(entities.location)
+    const showMap = shouldShowMap(
+      mapMode(this._config.map),
+      Boolean(route),
+      coordsOf(this.hass, entities.location) !== null
+    )
 
     this._syncHistory(showMap && this._config.trail ? entities.location : null)
 
@@ -446,13 +466,17 @@ export class TeslaFleetCard extends LitElement {
         gradualOpacity: 0.8
       })
     }
-    const bearing = bearingPath(
-      coordsOf(this.hass, entities.location),
-      coordsOf(this.hass, entities.route),
-      this._cssColor('--tc-dim', '#9b9b9b')
-    )
+    // Only while a route is actually set: the route tracker can still hold
+    // the last destination after arriving, and a line to somewhere the car is
+    // no longer going would be a lie.
+    const bearing = route
+      ? bearingPath(
+          coordsOf(this.hass, entities.location),
+          coordsOf(this.hass, entities.route),
+          this._cssColor('--tc-dim', '#9b9b9b')
+        )
+      : null
     if (bearing) paths.push(bearing)
-    void route
     return html`<ha-map
       .hass=${this.hass}
       .entities=${points}
@@ -606,10 +630,6 @@ export class TeslaFleetCard extends LitElement {
 
   // ------------------------------------------------------------------ helpers
 
-  _showMap() {
-    return this._config?.map !== false
-  }
-
   _clock(iso) {
     const at = new Date(iso)
     if (Number.isNaN(at.getTime())) return ''
@@ -644,7 +664,7 @@ const LABELS = {
   paint: 'Paint',
   wheels: 'Wheels',
   view: 'Angle',
-  map: 'Show a map while navigating',
+  map: 'Show a map',
   trail: 'Draw where it has been',
   controls: 'Show controls',
   performance: 'Performance model',
@@ -660,7 +680,7 @@ const HELPERS = {
   paint: 'Not reported by the integration, so pick your colour here.',
   wheels: 'Not reported by the integration, so pick your wheels here.',
   units: 'Home Assistant treats the UK as metric, so set this to miles if you want road units.',
-  map: 'The map appears only when a route is set. A parked car shows its zone instead.',
+  map: 'Showing it only while navigating keeps the card small the rest of the time.',
   performance: 'Needed before the configurator will render the larger wheels.',
   image: 'Show your own picture instead of the configurator render.',
   options_override: 'Raw option string, for a configuration the dropdowns do not cover.'
