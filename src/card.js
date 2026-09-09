@@ -15,6 +15,7 @@ import { resolveEntities, lastUpdated, teslaVehicleDevices, stateOf } from './li
 import { readVehicle, minutesSince, formatAge, ASLEEP, CHARGING, DRIVING } from './lib/state.js'
 import { ICONS } from './icons.js'
 import { createImageCache, imageErrorAction } from './lib/image-cache.js'
+import { display, resolvePreference } from './lib/units.js'
 
 const LOW_CHARGE = 20
 /** How much history the trail draws behind the car. */
@@ -126,6 +127,20 @@ export class TeslaFleetCard extends LitElement {
               name: 'view',
               selector: {
                 select: { mode: 'dropdown', options: VIEWS.map((v) => ({ value: v, label: v })) }
+              }
+            },
+            {
+              name: 'units',
+              selector: {
+                select: {
+                  mode: 'dropdown',
+                  options: [
+                    { value: 'auto', label: 'Follow what your country drives in' },
+                    { value: 'imperial', label: 'Miles' },
+                    { value: 'metric', label: 'Kilometres' },
+                    { value: 'home_assistant', label: "Home Assistant's unit system" }
+                  ]
+                }
               }
             },
             {
@@ -313,6 +328,11 @@ export class TeslaFleetCard extends LitElement {
     })
   }
 
+  /** Miles or kilometres, settled once per render. */
+  _units() {
+    return resolvePreference(this._config.units, this.hass?.config?.country)
+  }
+
   _hand() {
     const choice = this._config.drive_hand
     if (choice === 'lhd' || choice === 'rhd') return choice
@@ -321,12 +341,16 @@ export class TeslaFleetCard extends LitElement {
 
   /** Driving leads with speed; everything else leads with charge. */
   _readout(vehicle) {
+    const preference = this._units()
     const driving = vehicle.status === DRIVING && vehicle.speed !== null
-    const primary = driving ? vehicle.speed : vehicle.battery
-    const unit = driving ? (vehicle.speedUnit ?? 'mph') : '%'
+    const speed = display(vehicle.speed, vehicle.speedUnit, preference, 'speed')
+    const distance = display(vehicle.range, vehicle.rangeUnit, preference)
+
+    const primary = driving ? speed.value : vehicle.battery
+    const unit = driving ? (speed.unit ?? 'mph') : '%'
     const range =
-      vehicle.range !== null
-        ? `${Math.round(vehicle.range)} ${vehicle.rangeUnit ?? 'mi'} remaining`
+      distance.value !== null
+        ? `${Math.round(distance.value)} ${distance.unit ?? 'mi'} remaining`
         : null
 
     return html`
@@ -369,10 +393,9 @@ export class TeslaFleetCard extends LitElement {
       const eta = this._arrivalIn(route.arrival)
       const where = route.destination ?? 'Destination'
       const lead = eta ? `${where} in ${eta}` : where
+      const togo = display(route.distance, route.distanceUnit, this._units())
       const detail = [
-        route.distance !== null
-          ? `${Math.round(route.distance)} ${route.distanceUnit ?? 'mi'}`
-          : null,
+        togo.value !== null ? `${Math.round(togo.value)} ${togo.unit ?? 'mi'}` : null,
         route.arrival ? `arriving ${this._clock(route.arrival)}` : null
       ]
         .filter(Boolean)
@@ -603,6 +626,7 @@ const LABELS = {
   trail: 'Draw where it has been',
   controls: 'Show controls',
   performance: 'Performance model',
+  units: 'Distance and speed',
   drive_hand: 'Steering wheel',
   name: 'Name',
   image: 'Image URL',
@@ -613,6 +637,8 @@ const HELPERS = {
   device_id: 'The card reads the model, year and body from this vehicle.',
   paint: 'Not reported by the integration, so pick your colour here.',
   wheels: 'Not reported by the integration, so pick your wheels here.',
+  units:
+    'The UK drives in miles but Home Assistant treats it as metric, so the card follows the road.',
   map: 'The map appears only when a route is set. A parked car shows its zone instead.',
   performance: 'Needed before the configurator will render the larger wheels.',
   image: 'Show your own picture instead of the configurator render.',
