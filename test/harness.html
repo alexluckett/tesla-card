@@ -1,0 +1,180 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>tesla-card harness</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap"
+    />
+    <style>
+      body {
+        margin: 0;
+        padding: 20px;
+        background: #111;
+        font: 13px Roboto, sans-serif;
+        color: #9b9b9b;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(430px, 1fr));
+        gap: 18px;
+        align-items: start;
+      }
+      body.light {
+        background: #f2f3f5;
+        color: #727272;
+      }
+      section > h3 {
+        font-size: 11px;
+        font-weight: 500;
+        margin: 0 0 8px;
+        letter-spacing: 0.04em;
+      }
+      /* Home Assistant's own dark theme tokens, so the card is exercised the
+         way it will actually be themed. */
+      :root {
+        --primary-text-color: #e1e1e1;
+        --secondary-text-color: #9b9b9b;
+        --divider-color: rgba(225, 225, 225, 0.12);
+        --primary-color: #03a9f4;
+        --warning-color: #ffa726;
+        --success-color: #43a047;
+        --card-background-color: #1c1c1c;
+        --ha-card-background: #1c1c1c;
+        --ha-font-family-body: Roboto, sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <script type="module">
+      // Minimal ha-card so the bundle can render outside Home Assistant.
+      if (!customElements.get('ha-card')) {
+        customElements.define(
+          'ha-card',
+          class extends HTMLElement {
+            connectedCallback() {
+              this.style.cssText =
+                'display:block;background:var(--ha-card-background);border:1px solid var(--divider-color);border-radius:12px;'
+            }
+          }
+        )
+      }
+
+      await import('../dist/tesla-card.js')
+
+      const DEVICE = 'dev_my'
+      const KEYS = {
+        battery: 'charge_state_battery_level',
+        range: 'charge_state_battery_range',
+        chargingState: 'charge_state_charging_state',
+        chargeLimit: 'charge_state_charge_limit_soc',
+        speed: 'drive_state_speed',
+        shiftState: 'drive_state_shift_state',
+        online: 'state',
+        locked: 'vehicle_state_locked',
+        location: 'location',
+        arrivalTime: 'drive_state_active_route_minutes_to_arrival',
+        distanceToArrival: 'drive_state_active_route_miles_to_arrival',
+        destination: 'drive_state_active_route_destination'
+      }
+
+      function makeHass(values) {
+        const entities = {}
+        const states = {}
+        for (const [name, v] of Object.entries(values)) {
+          const id = `sensor.model_y_${name}`
+          entities[id] = {
+            entity_id: id,
+            device_id: DEVICE,
+            platform: 'tesla_fleet',
+            translation_key: KEYS[name]
+          }
+          states[id] = {
+            entity_id: id,
+            state: v.state,
+            attributes: v.attributes ?? {},
+            last_updated: v.last_updated ?? new Date(Date.now() - 4 * 60000).toISOString()
+          }
+        }
+        return {
+          entities,
+          states,
+          devices: {
+            [DEVICE]: {
+              id: DEVICE,
+              name: 'Model Y',
+              model: 'Model Y',
+              serial_number: '7SAYGDEF9TA123456'
+            }
+          },
+          config: { country: 'GB' },
+          locale: { language: 'en-GB' },
+          callService: async (...args) => console.log('callService', ...args)
+        }
+      }
+
+      const parked = {
+        battery: { state: '71' },
+        range: { state: '198', attributes: { unit_of_measurement: 'mi' } },
+        chargingState: { state: 'disconnected' },
+        shiftState: { state: 'p' },
+        speed: { state: 'unknown' },
+        online: { state: 'on' },
+        locked: { state: 'locked' },
+        location: { state: 'home' },
+        chargeLimit: { state: '80' }
+      }
+
+      const cases = [
+        ['Parked', parked, {}],
+        [
+          'Charging',
+          {
+            ...parked,
+            battery: { state: '63' },
+            range: { state: '176', attributes: { unit_of_measurement: 'mi' } },
+            chargingState: { state: 'charging' }
+          },
+          {}
+        ],
+        [
+          'Driving, navigating',
+          {
+            ...parked,
+            battery: { state: '54' },
+            range: { state: '151', attributes: { unit_of_measurement: 'mi' } },
+            shiftState: { state: 'd' },
+            speed: { state: '38', attributes: { unit_of_measurement: 'mph' } },
+            locked: { state: 'unlocked' },
+            location: { state: 'not_home' },
+            arrivalTime: { state: new Date(Date.now() + 12 * 60000).toISOString() },
+            distanceToArrival: { state: '23', attributes: { unit_of_measurement: 'mi' } },
+            destination: { state: 'Home' }
+          },
+          {}
+        ],
+        ['Asleep', { ...parked, online: { state: 'off' } }, {}],
+        ['Low charge', { ...parked, battery: { state: '12' } }, {}],
+        ['Unlocked while parked', { ...parked, locked: { state: 'unlocked' } }, {}],
+        ['Controls on', parked, { controls: true }],
+        ['Everything unavailable', Object.fromEntries(
+          Object.keys(parked).map((k) => [k, { state: 'unavailable' }])
+        ), {}],
+        ['No device configured', parked, { device_id: '' }],
+        ['Pearl white, helix wheels', parked, { paint: 'pearl_white', wheels: 'helix_20' }]
+      ]
+
+      for (const [label, values, extra] of cases) {
+        const section = document.createElement('section')
+        const h = document.createElement('h3')
+        h.textContent = label
+        section.append(h)
+        const card = document.createElement('tesla-fleet-card')
+        card.setConfig({ device_id: DEVICE, ...extra })
+        card.hass = makeHass(values)
+        section.append(card)
+        document.body.append(section)
+      }
+      console.log('[harness] rendered', cases.length, 'cards')
+    </script>
+  </body>
+</html>

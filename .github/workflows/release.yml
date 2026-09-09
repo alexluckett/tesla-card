@@ -1,0 +1,30 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+      # HACS looks in dist first, then the latest release. Attaching the built
+      # file means an install never has to compile anything.
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/tesla-card.js
+          generate_release_notes: true
