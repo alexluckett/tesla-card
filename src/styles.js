@@ -242,6 +242,12 @@ export const styles = css`
     border-radius: 10px;
     overflow: hidden;
     height: 170px;
+    /* Left alone, a marker is a 48px circle carrying the initials of the
+       entity name, so a Tesla Model Y arrives as a large "TMY" badge. Two
+       cars on a small map is not what this card is for: shrink it to a dot
+       and drop the lettering, keeping the colour to say which is which. */
+    --ha-marker-size: 18px;
+    --ha-marker-font-size: 0px;
   }
 
   .controls {

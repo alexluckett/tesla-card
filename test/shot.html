@@ -72,13 +72,23 @@
             }
             _draw() {
               const dark = document.body.classList.contains('dark')
+              const dark0 = dark
               const paths = this.paths || []
+              // ha-entity-marker: a circle sized by --ha-marker-size, filled
+              // with the card background and outlined in the entity colour.
+              const cs = getComputedStyle(this)
+              const size = parseFloat(cs.getPropertyValue('--ha-marker-size')) || 48
+              const cardBg = dark0 ? '#1c1c1c' : '#ffffff'
               const marks = []
-              for (const id of this.entities || []) {
+              for (const e of this.entities || []) {
+                const id = typeof e === 'string' ? e : e.entity_id
+                const colour = typeof e === 'string' ? '#03a9f4' : e.color
                 const a = window.__hass?.states?.[id]?.attributes
-                if (a && typeof a.latitude === 'number') marks.push([a.latitude, a.longitude])
+                if (a && typeof a.latitude === 'number') {
+                  marks.push({ at: [a.latitude, a.longitude], colour })
+                }
               }
-              const all = [...marks, ...paths.flatMap((p) => p.points.map((q) => q.point))]
+              const all = [...marks.map((m) => m.at), ...paths.flatMap((p) => p.points.map((q) => q.point))]
               if (!all.length) return
               const lats = all.map((p) => p[0])
               const lons = all.map((p) => p[1])
@@ -121,10 +131,10 @@
                 ${paths.map((p) => pathEl(p, '')).join('')}
                 ${marks
                   .map(
-                    (m, i) =>
-                      `<circle cx="${x(m[1]).toFixed(1)}" cy="${y(m[0]).toFixed(1)}" r="6"
-                        fill="${i === 0 ? '#03a9f4' : dark ? '#e1e1e1' : '#212121'}"
-                        stroke="${dark ? '#1c1c1c' : '#fff'}" stroke-width="2.5"/>`
+                    (m) =>
+                      `<circle cx="${x(m.at[1]).toFixed(1)}" cy="${y(m.at[0]).toFixed(1)}"
+                        r="${(size / 2).toFixed(1)}" fill="${cardBg}"
+                        stroke="${m.colour}" stroke-width="1.5"/>`
                   )
                   .join('')}
               </svg>`

@@ -464,7 +464,19 @@ export class TeslaFleetCard extends LitElement {
       this._loadMapComponent()
       return nothing
     }
-    const points = [entities.location, entities.route].filter(Boolean)
+    // Objects rather than bare ids, so each marker takes its own colour: the
+    // accent for the car, the text colour for where it is headed.
+    const points = [
+      entities.location && {
+        entity_id: entities.location,
+        color: this._cssColor('--tc-accent', '#03a9f4')
+      },
+      route &&
+        entities.route && {
+          entity_id: entities.route,
+          color: this._cssColor('--tc-text', '#e1e1e1')
+        }
+    ].filter(Boolean)
     const paths = []
     // The map lives in its own shadow root, so a CSS variable would never
     // resolve there. Read the real colour off this card instead.

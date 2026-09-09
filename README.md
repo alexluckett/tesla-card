@@ -117,6 +117,11 @@ Tesla does not publish the road route, so nothing on the map pretends to be one.
 The map above is drawn from the coordinates the card passes; Home Assistant renders the
 cartography itself, in your theme.
 
+Left to itself, Home Assistant draws a map marker as a 48 pixel circle carrying the initials of
+the entity name, so a Tesla Model Y arrives as a large **TMY** badge. The card shrinks the
+marker to a dot and drops the lettering, keeping colour to say which is which: the accent for
+the car, the text colour for where it is headed.
+
 Home Assistant loads its map component only when something asks for it, so the card requests it
 the first time it needs one. That means the map can appear a moment after the rest of the card
 on a dashboard that has no other map on it. If it never appears, the card says why underneath:
