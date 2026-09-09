@@ -103,6 +103,12 @@ the card does not do that.
 
 Tesla does not publish the road route, so nothing on the map pretends to be one.
 
+The destination comes from the car's own navigation, not from your zones, so it works for
+anywhere you drive: `Tesco Extra, Slough in 12 min` as readily as `Home in 20 min`. A full
+postal address is reduced to its first part — `42 Kingsway Avenue` rather than the whole
+thing with the postcode — and the arrival time is never what gets truncated. Hover the name
+to see it in full.
+
 To see the destination **by name**, enable one entity that the integration ships switched off:
 
 **Settings → Devices → your car → +n entities → Destination → Enable**

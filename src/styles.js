@@ -205,11 +205,19 @@ export const styles = css`
   .place .lead {
     font-weight: var(--ha-font-weight-medium, 500);
     display: inline-flex;
-    align-items: center;
+    align-items: baseline;
     gap: 5px;
     min-width: 0;
+  }
+  /* Only the name may shrink; the arrival time always survives. */
+  .place .where {
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  .place .eta {
+    flex: none;
   }
   .place .zone {
     font-weight: var(--ha-font-weight-normal, 400);
@@ -225,6 +233,7 @@ export const styles = css`
   .place .detail {
     color: var(--tc-dim);
     font-size: var(--ha-font-size-s, 12.5px);
+    flex: none;
   }
 
   ha-map {

@@ -17,6 +17,7 @@ import { ICONS } from './icons.js'
 import { createImageCache, imageErrorAction } from './lib/image-cache.js'
 import { display, resolvePreference } from './lib/units.js'
 import { coordsOf, bearingPath } from './lib/geo.js'
+import { shortenPlace } from './lib/text.js'
 
 const LOW_CHARGE = 20
 /** How much history the trail draws behind the car. */
@@ -406,15 +407,13 @@ export class TeslaFleetCard extends LitElement {
   _place(vehicle, route) {
     if (route) {
       const eta = this._arrivalIn(route.arrival)
-      // Without the destination sensor there is no name to lead with, so say
-      // what is actually known rather than the word "Destination".
-      const lead = route.destination
-        ? eta
-          ? `${route.destination} in ${eta}`
-          : route.destination
-        : eta
-          ? `Arriving in ${eta}`
-          : 'On a route'
+      const where = shortenPlace(route.destination)
+      // The name is the part that may not fit, so it is the part that gets
+      // truncated. The time must never be the thing that falls off the end.
+      const lead = where
+        ? html`<span class="where" title=${route.destination}>${where}</span>
+            ${eta ? html`<span class="eta">in ${eta}</span>` : nothing}`
+        : html`<span class="where">${eta ? `Arriving in ${eta}` : 'On a route'}</span>`
       const togo = display(route.distance, route.distanceUnit, this._units())
       const detail = [
         togo.value !== null ? `${Math.round(togo.value)} ${togo.unit ?? 'mi'}` : null,
