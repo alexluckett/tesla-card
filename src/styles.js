@@ -252,23 +252,42 @@ export const styles = css`
   }
   .controls button {
     flex: 1 1 0;
-    min-width: 64px;
+    min-width: 60px;
+    min-height: 52px;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 5px;
-    padding: 10px 4px;
+    padding: 9px 4px;
     font: inherit;
     font-size: var(--ha-font-size-s, 11.5px);
-    color: var(--tc-text);
+    color: var(--tc-dim);
     background: var(--tc-line);
     border: none;
     border-radius: 12px;
     cursor: pointer;
+    transition: background 120ms ease;
+  }
+  /* Tinted means the car is doing this now, so the row reads as state. */
+  .controls button.on {
+    color: var(--tc-accent);
+    background: var(--tc-line);
+    background: color-mix(in srgb, currentColor 16%, transparent);
+  }
+  .controls button.on.ok {
+    color: var(--tc-ok);
+  }
+  .controls button.on.warn {
+    color: var(--tc-warn);
   }
   .controls button:hover:not(:disabled) {
-    background: var(--tc-dim);
-    color: var(--tc-surface);
+    background: color-mix(in srgb, currentColor 26%, transparent);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .controls button {
+      transition: none;
+    }
   }
   .controls button:focus-visible {
     outline: 2px solid var(--tc-accent);
@@ -282,6 +301,13 @@ export const styles = css`
     width: 19px;
     height: 19px;
     fill: currentColor;
+    flex: none;
+  }
+  .controls button span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
 
   .notice {

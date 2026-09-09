@@ -15,5 +15,7 @@ export const ICONS = {
 
   climate: svg`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a1 1 0 0 1 1 1v7.27a3 3 0 1 1-2 0V3a1 1 0 0 1 1-1m0 3.5a2.5 2.5 0 0 0-2.5 2.5v4.6a4.5 4.5 0 1 0 5 0V8A2.5 2.5 0 0 0 12 5.5Z"/></svg>`,
 
+  sentry: svg`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0 8a5 5 0 0 1-5-5 5 5 0 0 1 5-5 5 5 0 0 1 5 5 5 5 0 0 1-5 5m0-12.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5Z"/></svg>`,
+
   wake: svg`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.56 5.44 15.11 6.89A6 6 0 1 1 8.89 6.9L7.44 5.44a8 8 0 1 0 9.12 0M13 3h-2v10h2Z"/></svg>`
 }

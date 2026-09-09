@@ -230,7 +230,7 @@ export class TeslaFleetCard extends LitElement {
         </div>
         ${this._gauge(vehicle)} ${this._place(vehicle, route)}
         ${showMap ? this._map(entities, route) : nothing}
-        ${this._config.controls ? this._controls(entities) : nothing}
+        ${this._config.controls ? this._controls(entities, vehicle) : nothing}
         ${this._notices(identity, route)}
       </ha-card>
     `
@@ -491,25 +491,63 @@ export class TeslaFleetCard extends LitElement {
     ></ha-map>`
   }
 
-  _controls(entities) {
+  /**
+   * Controls that show what they control.
+   *
+   * A row of identical buttons says nothing about the car. These carry the
+   * current state instead, so the row reads as status you can act on rather
+   * than a strip of switches: the tint means "this is doing something now".
+   */
+  _controls(entities, vehicle) {
+    const climate = stateOf(this.hass, entities.climate)
+    const target = climate?.attributes?.temperature
     const actions = [
-      { id: 'lock', label: 'Lock', icon: ICONS.lock, entity: entities.locked, domain: 'lock' },
-      {
+      entities.locked && {
+        id: 'lock',
+        icon: vehicle.locked === false ? ICONS.lockOpen : ICONS.lock,
+        label: vehicle.locked === false ? 'Unlocked' : 'Locked',
+        entity: entities.locked,
+        domain: 'lock',
+        tone: vehicle.locked === false ? 'warn' : null
+      },
+      entities.chargeSwitch && {
         id: 'charge',
-        label: 'Charge',
         icon: ICONS.bolt,
-        entity: entities.chargingState,
-        domain: 'switch'
+        label: vehicle.status === CHARGING ? 'Charging' : 'Charge',
+        entity: entities.chargeSwitch,
+        domain: 'switch',
+        tone: vehicle.status === CHARGING ? 'ok' : null
       },
-      {
+      entities.climate && {
         id: 'climate',
-        label: 'Climate',
         icon: ICONS.climate,
+        label:
+          climate && climate.state !== 'off'
+            ? target !== undefined
+              ? `${Math.round(target)}°`
+              : 'On'
+            : 'Climate',
         entity: entities.climate,
-        domain: 'climate'
+        domain: 'climate',
+        tone: climate && climate.state !== 'off' ? 'on' : null
       },
-      { id: 'wake', label: 'Wake', icon: ICONS.wake, entity: entities.wake, domain: 'button' }
-    ].filter((action) => Boolean(action.entity))
+      entities.sentry && {
+        id: 'sentry',
+        icon: ICONS.sentry,
+        label: 'Sentry',
+        entity: entities.sentry,
+        domain: 'switch',
+        tone: stateOf(this.hass, entities.sentry)?.state === 'on' ? 'on' : null
+      },
+      entities.wake && {
+        id: 'wake',
+        icon: ICONS.wake,
+        label: 'Wake',
+        entity: entities.wake,
+        domain: 'button',
+        tone: null
+      }
+    ].filter(Boolean)
 
     if (!actions.length) return nothing
     return html`<div class="controls">
@@ -517,10 +555,11 @@ export class TeslaFleetCard extends LitElement {
         (action) =>
           html`<button
             type="button"
+            class=${action.tone ? `on ${action.tone}` : ''}
+            aria-pressed=${action.tone ? 'true' : 'false'}
             @click=${(event) => this._runAction(event, action)}
-            title=${action.label}
           >
-            ${action.icon}${action.label}
+            ${action.icon}<span>${action.label}</span>
           </button>`
       )}
     </div>`

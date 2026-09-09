@@ -8,36 +8,48 @@
 
 export const PLATFORM = 'tesla_fleet'
 
-/** Translation keys the card reads, by the name it uses internally. */
+/**
+ * The entities the card reads, as `domain:translation_key`.
+ *
+ * The domain is part of the identity, not decoration: the integration reuses
+ * a translation key across platforms. `charge_state_charging_state` is both
+ * the charging sensor and the charge switch, and `charge_state_conn_charge_cable`
+ * is both a sensor and a binary sensor. Matching on the key alone picked
+ * whichever happened to come first.
+ */
 export const KEYS = {
-  battery: 'charge_state_battery_level',
-  batteryUsable: 'charge_state_usable_battery_level',
-  range: 'charge_state_battery_range',
-  rangeEstimated: 'charge_state_est_battery_range',
-  chargingState: 'charge_state_charging_state',
-  chargerPower: 'charge_state_charger_power',
-  chargeLimit: 'charge_state_charge_limit_soc',
-  timeToFull: 'charge_state_minutes_to_full_charge',
-  cableConnected: 'charge_state_conn_charge_cable',
-  speed: 'drive_state_speed',
-  shiftState: 'drive_state_shift_state',
-  odometer: 'vehicle_state_odometer',
-  insideTemp: 'climate_state_inside_temp',
-  outsideTemp: 'climate_state_outside_temp',
-  online: 'state',
-  locked: 'vehicle_state_locked',
-  location: 'location',
-  route: 'route',
-  destination: 'drive_state_active_route_destination',
-  arrivalTime: 'drive_state_active_route_minutes_to_arrival',
-  distanceToArrival: 'drive_state_active_route_miles_to_arrival',
-  chargeAtArrival: 'drive_state_active_route_energy_at_arrival',
-  sentry: 'vehicle_state_sentry_mode',
-  climate: 'driver_temp',
-  frunk: 'vehicle_state_ft',
-  trunk: 'vehicle_state_rt',
-  windows: 'windows',
-  wake: 'wake'
+  battery: 'sensor:charge_state_battery_level',
+  batteryUsable: 'sensor:charge_state_usable_battery_level',
+  range: 'sensor:charge_state_battery_range',
+  rangeEstimated: 'sensor:charge_state_est_battery_range',
+  chargingState: 'sensor:charge_state_charging_state',
+  chargerPower: 'sensor:charge_state_charger_power',
+  chargeLimit: 'number:charge_state_charge_limit_soc',
+  timeToFull: 'sensor:charge_state_minutes_to_full_charge',
+  cableConnected: 'binary_sensor:charge_state_conn_charge_cable',
+  speed: 'sensor:drive_state_speed',
+  shiftState: 'sensor:drive_state_shift_state',
+  odometer: 'sensor:vehicle_state_odometer',
+  insideTemp: 'sensor:climate_state_inside_temp',
+  outsideTemp: 'sensor:climate_state_outside_temp',
+  online: 'binary_sensor:state',
+  locked: 'lock:vehicle_state_locked',
+  location: 'device_tracker:location',
+  route: 'device_tracker:route',
+  destination: 'sensor:drive_state_active_route_destination',
+  arrivalTime: 'sensor:drive_state_active_route_minutes_to_arrival',
+  distanceToArrival: 'sensor:drive_state_active_route_miles_to_arrival',
+  chargeAtArrival: 'sensor:drive_state_active_route_energy_at_arrival',
+
+  // Controls. The charge switch deliberately shares its translation key with
+  // the charging sensor above, which is exactly why the domain matters.
+  chargeSwitch: 'switch:charge_state_charging_state',
+  sentry: 'switch:vehicle_state_sentry_mode',
+  climate: 'climate:driver_temp',
+  frunk: 'cover:vehicle_state_ft',
+  trunk: 'cover:vehicle_state_rt',
+  windows: 'cover:windows',
+  wake: 'button:wake'
 }
 
 /**
@@ -46,6 +58,12 @@ export const KEYS = {
  * rather than silently dropping the feature.
  */
 export const DISABLED_BY_DEFAULT = new Set([KEYS.destination, KEYS.chargeAtArrival])
+
+/** The part of an entity id before the dot. */
+export function domainOf(entityId) {
+  const dot = typeof entityId === 'string' ? entityId.indexOf('.') : -1
+  return dot > 0 ? entityId.slice(0, dot) : null
+}
 
 /**
  * Map every Tesla Fleet entity on a device to the card's own names.
@@ -63,7 +81,7 @@ export function resolveEntities(hass, deviceId) {
   for (const entry of Object.values(hass.entities)) {
     if (entry.device_id !== deviceId) continue
     if (entry.platform !== PLATFORM) continue
-    const name = byKey.get(entry.translation_key)
+    const name = byKey.get(`${domainOf(entry.entity_id)}:${entry.translation_key}`)
     if (name) found[name] = entry.entity_id
   }
   return found
@@ -83,7 +101,9 @@ export function teslaVehicleDevices(hass) {
     if (entry.platform !== PLATFORM) continue
     if (!entry.device_id) continue
     // Energy sites and wall connectors share the platform but are not cars.
-    if (entry.translation_key === KEYS.battery) ids.add(entry.device_id)
+    if (`${domainOf(entry.entity_id)}:${entry.translation_key}` === KEYS.battery) {
+      ids.add(entry.device_id)
+    }
   }
   return [...ids].filter((id) => hass.devices[id])
 }

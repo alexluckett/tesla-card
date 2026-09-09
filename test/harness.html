@@ -62,31 +62,39 @@
       await import('../dist/tesla-card.js')
 
       const DEVICE = 'dev_my'
+      // domain:translation_key, matching how the card resolves entities. The
+      // domain matters: two platforms share charge_state_charging_state.
       const KEYS = {
-        battery: 'charge_state_battery_level',
-        range: 'charge_state_battery_range',
-        chargingState: 'charge_state_charging_state',
-        chargeLimit: 'charge_state_charge_limit_soc',
-        speed: 'drive_state_speed',
-        shiftState: 'drive_state_shift_state',
-        online: 'state',
-        locked: 'vehicle_state_locked',
-        location: 'location',
-        arrivalTime: 'drive_state_active_route_minutes_to_arrival',
-        distanceToArrival: 'drive_state_active_route_miles_to_arrival',
-        destination: 'drive_state_active_route_destination'
+        battery: 'sensor:charge_state_battery_level',
+        range: 'sensor:charge_state_battery_range',
+        chargingState: 'sensor:charge_state_charging_state',
+        chargeLimit: 'number:charge_state_charge_limit_soc',
+        speed: 'sensor:drive_state_speed',
+        shiftState: 'sensor:drive_state_shift_state',
+        online: 'binary_sensor:state',
+        locked: 'lock:vehicle_state_locked',
+        location: 'device_tracker:location',
+        route: 'device_tracker:route',
+        arrivalTime: 'sensor:drive_state_active_route_minutes_to_arrival',
+        distanceToArrival: 'sensor:drive_state_active_route_miles_to_arrival',
+        destination: 'sensor:drive_state_active_route_destination',
+        chargeSwitch: 'switch:charge_state_charging_state',
+        sentry: 'switch:vehicle_state_sentry_mode',
+        climate: 'climate:driver_temp',
+        wake: 'button:wake'
       }
 
       function makeHass(values) {
         const entities = {}
         const states = {}
         for (const [name, v] of Object.entries(values)) {
-          const id = `sensor.model_y_${name}`
+          const [domain, key] = (KEYS[name] || 'sensor:unknown').split(':')
+          const id = `${domain}.model_y_${name}`
           entities[id] = {
             entity_id: id,
             device_id: DEVICE,
             platform: 'tesla_fleet',
-            translation_key: KEYS[name]
+            translation_key: key
           }
           states[id] = {
             entity_id: id,
@@ -155,7 +163,18 @@
         ['Asleep', { ...parked, online: { state: 'off' } }, {}],
         ['Low charge', { ...parked, battery: { state: '12' } }, {}],
         ['Unlocked while parked', { ...parked, locked: { state: 'unlocked' } }, {}],
-        ['Controls on', parked, { controls: true }],
+        ['Controls: at rest', { ...parked, chargeSwitch: { state: 'off' },
+          climate: { state: 'off' }, sentry: { state: 'off' }, wake: { state: 'unknown' } },
+          { controls: true }],
+        ['Controls: charging, climate on, sentry armed, unlocked', {
+          ...parked,
+          chargingState: { state: 'charging' },
+          locked: { state: 'unlocked' },
+          chargeSwitch: { state: 'on' },
+          climate: { state: 'heat_cool', attributes: { temperature: 21 } },
+          sentry: { state: 'on' },
+          wake: { state: 'unknown' }
+        }, { controls: true }],
         ['Everything unavailable', Object.fromEntries(
           Object.keys(parked).map((k) => [k, { state: 'unavailable' }])
         ), {}],

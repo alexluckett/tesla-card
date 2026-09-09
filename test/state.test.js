@@ -18,8 +18,10 @@ function fakeHass(values, { deviceId = DEVICE, platform = 'tesla_fleet' } = {}) 
   const entities = {}
   const states = {}
   for (const [name, data] of Object.entries(values)) {
-    const key = KEYS[name]
-    const entityId = `sensor.model_y_${name}`
+    // KEYS carries the domain, and entity ids must match it or the resolver
+    // cannot tell two platforms sharing a translation key apart.
+    const [domain, key] = KEYS[name].split(':')
+    const entityId = `${domain}.model_y_${name}`
     entities[entityId] = {
       entity_id: entityId,
       device_id: deviceId,
@@ -206,6 +208,31 @@ describe('teslaVehicleDevices', () => {
       hass.entities[id].translation_key = 'solar_power'
     }
     assert.deepEqual(teslaVehicleDevices(hass), [])
+  })
+
+  test('the charge switch is not mistaken for the charging sensor', () => {
+    // Both carry translation_key charge_state_charging_state. Reading the
+    // switch instead of the sensor compares "on" against "charging", so
+    // charging would never be detected at all.
+    const hass = fakeHass({ ...parked, chargingState: { state: 'charging' } })
+    const switchId = 'switch.model_y_charge'
+    hass.entities[switchId] = {
+      entity_id: switchId,
+      device_id: DEVICE,
+      platform: 'tesla_fleet',
+      translation_key: 'charge_state_charging_state'
+    }
+    hass.states[switchId] = {
+      entity_id: switchId,
+      state: 'on',
+      attributes: {},
+      last_updated: '2026-09-09T12:00:00Z'
+    }
+
+    const found = resolveEntities(hass, DEVICE)
+    assert.equal(found.chargingState, 'sensor.model_y_chargingState')
+    assert.equal(found.chargeSwitch, switchId, 'the switch is available for the controls')
+    assert.equal(readVehicle(hass, found).status, CHARGING)
   })
 })
 

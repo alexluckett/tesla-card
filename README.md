@@ -118,7 +118,12 @@ Without it you still get `Arriving in 12 min · 23 miles`. The card tells you wh
 ### Controls
 
 Off by default. Switched on, the card renders only the actions your integration actually
-exposes, so a read-only setup never shows a dead button. Controlling a Tesla needs command
+exposes, so a read-only setup never shows a dead button.
+
+They show what they control rather than just offering a switch: the lock reads `Locked` or
+`Unlocked`, climate shows its target temperature while it is running, and anything currently
+active is tinted. So the row doubles as a second status line and is worth having on screen even
+when you rarely press it. Controlling a Tesla needs command
 signing set up in the integration; if you have not done that, leave this off.
 
 Tapping the card itself does nothing. Only buttons act.
