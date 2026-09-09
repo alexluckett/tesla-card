@@ -78,27 +78,20 @@ That is right for temperature and rainfall and wrong for how far a car can go, b
 signs are in miles. Home Assistant has one unit switch for the whole installation and no way to
 say "metric, except on the road".
 
-So the card follows the road rather than the thermometer: in the UK, the Isle of Man, the
-Channel Islands and the US it shows miles and mph, whatever the unit system says. Everywhere
-else it shows exactly what Home Assistant sends.
-
-Pin it if you disagree:
+The card does not second-guess that. It shows whatever Home Assistant sends, so **a UK
+installation shows kilometres by default**. Set the units if you want road units:
 
 ```yaml
-units: metric          # always kilometres
-units: imperial        # always miles
-units: home_assistant  # whatever the unit system converted to
+units: imperial   # miles and mph
+units: metric     # kilometres
+units: auto       # follow Home Assistant (the default)
 ```
 
-Changing it affects this card only. To fix the units everywhere — history graphs, other cards,
-templates — override them per entity instead, under **Settings → Devices & services → Entities**,
-open the sensor, then the cog and **Unit of Measurement**. That has to be done for each of
-range, estimated range, odometer, distance to arrival and speed, which is why the card carries
-its own setting.
-
-Freshness is the newest reading across every entity on the vehicle, not one sensor's
-`last_updated`. A battery sitting at 71% does not update its timestamp for hours even while
-polling is perfectly healthy, so a single sensor would report staleness that is not real.
+That affects this card only. To fix the units everywhere — history graphs, other cards,
+templates — override them per entity instead, under **Settings → Devices & services →
+Entities**: open the sensor, then the cog, then **Unit of Measurement**. Do that for range,
+estimated range, odometer, distance to arrival and speed. The card reads the unit Home
+Assistant reports, so it follows a per-entity override without any further setting.
 
 ### Where it is
 
@@ -134,7 +127,7 @@ Tapping the card itself does nothing. Only buttons act.
 | `device_id` | — | The vehicle. Required. |
 | `paint` | first for your body | Paint colour. Not reported by the integration. |
 | `wheels` | first for your body | Wheels. Not reported by the integration. |
-| `units` | from your country | `auto`, `imperial`, `metric` or `home_assistant`. |
+| `units` | `auto` | `auto` follows Home Assistant; `imperial` or `metric` pin it. |
 | `map` | `true` | Show a map while a route is set. |
 | `trail` | `true` | Draw where the car has been. |
 | `controls` | `false` | Show action buttons. |

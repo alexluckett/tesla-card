@@ -1,14 +1,6 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import {
-  display,
-  normalise,
-  preferenceForCountry,
-  resolvePreference,
-  AUTO,
-  IMPERIAL,
-  METRIC
-} from '../src/lib/units.js'
+import { display, normalise, resolvePreference, AUTO, IMPERIAL, METRIC } from '../src/lib/units.js'
 
 const near = (actual, expected, tolerance = 0.5) =>
   assert.ok(Math.abs(actual - expected) < tolerance, `expected roughly ${expected}, got ${actual}`)
@@ -84,44 +76,22 @@ describe('normalise', () => {
   })
 })
 
-describe('choosing a default', () => {
-  test('the United Kingdom drives in miles even though it is otherwise metric', () => {
-    // This is the whole point: Home Assistant maps GB to metric, which is
-    // right for the weather and wrong for how far the car can go.
-    assert.equal(preferenceForCountry('GB'), IMPERIAL)
-    assert.equal(preferenceForCountry('gb'), IMPERIAL)
-  })
-
-  test('the Crown dependencies drive in miles too', () => {
-    for (const country of ['IM', 'JE', 'GG']) {
-      assert.equal(preferenceForCountry(country), IMPERIAL, country)
-    }
-  })
-
-  test('everywhere else keeps whatever Home Assistant decided', () => {
-    for (const country of ['DE', 'FR', 'NL', 'AU', 'NO']) {
-      assert.equal(preferenceForCountry(country), AUTO, country)
-    }
-  })
-
-  test('no country set means no opinion', () => {
-    assert.equal(preferenceForCountry(null), AUTO)
-    assert.equal(preferenceForCountry(undefined), AUTO)
-  })
-})
-
 describe('resolvePreference', () => {
-  test('an explicit choice beats the country', () => {
-    assert.equal(resolvePreference(METRIC, 'GB'), METRIC)
-    assert.equal(resolvePreference(IMPERIAL, 'DE'), IMPERIAL)
+  test('follows Home Assistant when nothing is configured', () => {
+    // Deliberately not country-aware: the card does not override a unit
+    // system the user chose, it just offers a way to disagree with it.
+    assert.equal(resolvePreference(undefined), AUTO)
+    assert.equal(resolvePreference('auto'), AUTO)
+    assert.equal(resolvePreference('home_assistant'), AUTO)
   })
 
-  test('asking for Home Assistant is honoured even in a miles country', () => {
-    assert.equal(resolvePreference('home_assistant', 'GB'), AUTO)
+  test('an explicit choice is honoured', () => {
+    assert.equal(resolvePreference(METRIC), METRIC)
+    assert.equal(resolvePreference(IMPERIAL), IMPERIAL)
   })
 
-  test('no choice falls back to the country', () => {
-    assert.equal(resolvePreference(undefined, 'GB'), IMPERIAL)
-    assert.equal(resolvePreference(undefined, 'DE'), AUTO)
+  test('nonsense falls back to following Home Assistant', () => {
+    assert.equal(resolvePreference('furlongs'), AUTO)
+    assert.equal(resolvePreference(null), AUTO)
   })
 })

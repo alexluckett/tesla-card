@@ -33,37 +33,15 @@ const IMPERIAL_UNITS = new Set(['mi', 'mph'])
 const METRIC_UNITS = new Set(['km', 'km/h'])
 
 /**
- * Places whose road signs are in miles per hour.
- *
- * Home Assistant's unit system is one switch for the whole installation, so
- * the United Kingdom comes out metric — correct for temperature and rainfall,
- * wrong for how far a car can go. This card only ever shows road distances
- * and road speeds, so it follows the road rather than the thermometer.
- */
-const MILES_ON_ROADS = new Set(['GB', 'IM', 'JE', 'GG', 'US', 'LR'])
-
-/**
- * What the card should display when the user has not pinned a preference.
- *
- * @param {string | null | undefined} country From `hass.config.country`
- * @returns {string} `imperial`, or `auto` to follow Home Assistant
- */
-export function preferenceForCountry(country) {
-  if (typeof country !== 'string') return AUTO
-  return MILES_ON_ROADS.has(country.trim().toUpperCase()) ? IMPERIAL : AUTO
-}
-
-/**
- * Settle the preference: an explicit choice always wins, otherwise fall back
- * to what the country drives in.
+ * Settle the preference. The card follows Home Assistant unless it is told
+ * otherwise: second-guessing a unit system the user chose deliberately would
+ * be worse than showing kilometres to someone who can set `units: imperial`.
  *
  * @param {string | undefined} configured
- * @param {string | null | undefined} country
  */
-export function resolvePreference(configured, country) {
+export function resolvePreference(configured) {
   if (configured === IMPERIAL || configured === METRIC) return configured
-  if (configured === 'home_assistant') return AUTO
-  return preferenceForCountry(country)
+  return AUTO
 }
 
 /**

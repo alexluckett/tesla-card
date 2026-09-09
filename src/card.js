@@ -135,10 +135,9 @@ export class TeslaFleetCard extends LitElement {
                 select: {
                   mode: 'dropdown',
                   options: [
-                    { value: 'auto', label: 'Follow what your country drives in' },
+                    { value: 'auto', label: 'Follow Home Assistant' },
                     { value: 'imperial', label: 'Miles' },
-                    { value: 'metric', label: 'Kilometres' },
-                    { value: 'home_assistant', label: "Home Assistant's unit system" }
+                    { value: 'metric', label: 'Kilometres' }
                   ]
                 }
               }
@@ -330,7 +329,7 @@ export class TeslaFleetCard extends LitElement {
 
   /** Miles or kilometres, settled once per render. */
   _units() {
-    return resolvePreference(this._config.units, this.hass?.config?.country)
+    return resolvePreference(this._config.units)
   }
 
   _hand() {
@@ -637,8 +636,7 @@ const HELPERS = {
   device_id: 'The card reads the model, year and body from this vehicle.',
   paint: 'Not reported by the integration, so pick your colour here.',
   wheels: 'Not reported by the integration, so pick your wheels here.',
-  units:
-    'The UK drives in miles but Home Assistant treats it as metric, so the card follows the road.',
+  units: 'Home Assistant treats the UK as metric, so set this to miles if you want road units.',
   map: 'The map appears only when a route is set. A parked car shows its zone instead.',
   performance: 'Needed before the configurator will render the larger wheels.',
   image: 'Show your own picture instead of the configurator render.',
