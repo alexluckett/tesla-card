@@ -1,0 +1,112 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Tesla Card — live</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        padding: 28px;
+        background: #0c0e11;
+        color: #e7eaef;
+        font-family: 'IBM Plex Sans', system-ui, sans-serif;
+      }
+      h1 {
+        font-size: 26px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        margin: 0 0 6px;
+      }
+      p.lede {
+        color: #9199a5;
+        margin: 0 0 4px;
+        max-width: 62ch;
+        line-height: 1.55;
+      }
+      p.hint {
+        color: #63a8ff;
+        margin: 0 0 26px;
+        font-size: 14px;
+      }
+      .grid {
+        display: grid;
+        gap: 22px;
+        grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
+        align-items: start;
+      }
+      figure {
+        margin: 0;
+      }
+      figcaption {
+        font-size: 13px;
+        color: #9199a5;
+        margin: 0 0 8px;
+      }
+      figcaption b {
+        color: #e7eaef;
+        font-weight: 500;
+      }
+      iframe {
+        width: 100%;
+        height: 460px;
+        border: 0;
+        border-radius: 12px;
+        display: block;
+        background: #111;
+      }
+      iframe.light {
+        background: #f2f3f5;
+      }
+      iframe.tall {
+        height: 640px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Tesla Card, running</h1>
+    <p class="lede">
+      Every card below is the built bundle from <code>dist/</code>, rendered live against a
+      stubbed Home Assistant. Rebuild with <code>npm run build</code> and reload to see changes.
+    </p>
+    <p class="hint">
+      Watch the charging gauge and the route line: the sheen and the drifting dashes are the two
+      things a screenshot cannot show.
+    </p>
+    <div class="grid" id="grid"></div>
+
+    <script type="module">
+      const CASES = [
+        ['parked', 'Parked', 'charge, range, and the zone if Home Assistant has one.'],
+        ['charging', 'Charging', 'a slow sheen runs along the green fill.'],
+        ['navigating_map', 'Navigating', 'the dashes drift towards the destination.', 'tall'],
+        ['light_nav', 'Navigating, light theme', 'the same, on a light theme.', 'tall light'],
+        ['asleep', 'Asleep', 'the last reading, dimmed, with its age.'],
+        ['low', 'Low charge', 'the gauge turns amber below twenty percent.'],
+        ['controls_rest', 'Controls at rest', 'nothing running, so everything sits quiet.', 'tall'],
+        [
+          'controls_active',
+          'Controls active',
+          'charging, climate on, sentry armed, unlocked.',
+          'tall'
+        ],
+        ['light', 'Light theme', 'every colour comes from Home Assistant tokens.', 'light']
+      ]
+
+      const grid = document.getElementById('grid')
+      for (const [id, title, note, extra = ''] of CASES) {
+        const fig = document.createElement('figure')
+        fig.innerHTML =
+          `<figcaption><b>${title}</b> ${note}</figcaption>` +
+          `<iframe class="${extra}" src="shot.html#${id}" loading="lazy"></iframe>`
+        grid.append(fig)
+      }
+    </script>
+  </body>
+</html>

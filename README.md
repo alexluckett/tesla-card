@@ -4,7 +4,7 @@ A Home Assistant dashboard card for vehicles on the [Tesla Fleet][fleet] integra
 at your car and it works out the rest: model, model year, body generation and every entity it
 needs.
 
-![The card parked, and driving with a route set](https://raw.githubusercontent.com/alexluckett/tesla-card/main/docs/preview.png?v=20260910b)
+![The card parked, and driving with a route set](https://raw.githubusercontent.com/alexluckett/tesla-card/main/docs/preview.png?v=20260910c)
 
 ## Install
 
@@ -68,7 +68,7 @@ polls every ten minutes, so **asleep is the common state** and driving is the ra
 - **Charging** — the gauge fills in green, and a slow sheen runs along it while energy flows.
 - **Driving** — speed leads instead of charge.
 
-![Parked, charging, driving and asleep](https://raw.githubusercontent.com/alexluckett/tesla-card/main/docs/states.png?v=20260910b)
+![Parked, charging, driving and asleep](https://raw.githubusercontent.com/alexluckett/tesla-card/main/docs/states.png?v=20260910c)
 
 The mark on the charge gauge is your **charge limit**, read from the car.
 
@@ -77,7 +77,7 @@ The mark on the charge gauge is your **charge limit**, read from the car.
 Every colour comes from a Home Assistant token, so the card follows whatever theme is running.
 Nothing is hard-coded.
 
-![The same card on a dark and a light theme](https://raw.githubusercontent.com/alexluckett/tesla-card/main/docs/themes.png?v=20260910b)
+![The same card on a dark and a light theme](https://raw.githubusercontent.com/alexluckett/tesla-card/main/docs/themes.png?v=20260910c)
 
 The screenshots throughout use Pearl White; set `paint` to whichever of the seven your car is.
 
@@ -114,7 +114,7 @@ the card does not do that.
 
 Tesla does not publish the road route, so nothing on the map pretends to be one.
 
-![Driving with the map showing the bearing to the destination](https://raw.githubusercontent.com/alexluckett/tesla-card/main/docs/map.png?v=20260910b)
+![Driving with the map showing the bearing to the destination](https://raw.githubusercontent.com/alexluckett/tesla-card/main/docs/map.png?v=20260910c)
 
 The map above is drawn from the coordinates and paths the card passes, including a trail the
 card built from real history; Home Assistant renders the cartography itself, in your theme.
@@ -152,7 +152,7 @@ They show what they control rather than just offering a switch: the lock reads `
 active is tinted. So the row doubles as a second status line and is worth having on screen even
 when you rarely press it.
 
-![Controls at rest, and with charging, climate and sentry active](https://raw.githubusercontent.com/alexluckett/tesla-card/main/docs/controls.png?v=20260910b)
+![Controls at rest, and with charging, climate and sentry active](https://raw.githubusercontent.com/alexluckett/tesla-card/main/docs/controls.png?v=20260910c)
 
 Controlling a Tesla needs command signing set up in the integration; if you have not done that,
 leave this off.

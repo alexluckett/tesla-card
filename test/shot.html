@@ -66,22 +66,30 @@
        * latitude and longitude as the journey, so the trail runs along the
        * road instead of across whatever the illustration happened to contain.
        */
+      /**
+       * East out of one town, a bend northward, then east again into the
+       * next. The turn is the point: a straight line would make the bearing
+       * and the road indistinguishable, and the bearing is not a route.
+       */
       const ROAD = [
-        [51.44, -1.02],
-        [51.4495, -0.962],
-        [51.4605, -0.902],
-        [51.4702, -0.845],
-        [51.4772, -0.788],
-        [51.487, -0.73],
-        [51.4972, -0.666],
-        [51.5074, -0.6]
+        [51.4315, -1.018],
+        [51.4392, -0.9635],
+        [51.4487, -0.9142],
+        [51.4598, -0.8804],
+        [51.4736, -0.8618],
+        [51.4885, -0.8506],
+        [51.5024, -0.8262],
+        [51.5228, -0.7818],
+        [51.5302, -0.7205],
+        [51.5218, -0.6712],
+        [51.5163, -0.6402]
       ]
       /**
        * Where the car has got to: the trail must end exactly at its marker,
        * so both come from the same slice of the road rather than being
        * written out twice and drifting apart.
        */
-      const AT = 5
+      const AT = 6
       const DRIVEN = ROAD.slice(0, AT + 1)
       const CAR = ROAD[AT]
       const DESTINATION = ROAD[ROAD.length - 1]
@@ -93,38 +101,41 @@
       // rather than tick marks.
       const LANES = [
         [
-          [51.4605, -0.902],
-          [51.4835, -0.9125]
+          [51.4487, -0.9142],
+          [51.4335, -0.8885]
         ],
         [
-          [51.4772, -0.788],
-          [51.4548, -0.7775]
+          [51.4736, -0.8618],
+          [51.4805, -0.9165]
         ],
         [
-          [51.4972, -0.666],
-          [51.5155, -0.6815]
+          [51.5112, -0.7742],
+          [51.4915, -0.7565]
+        ],
+        [
+          [51.5302, -0.7205],
+          [51.5448, -0.7368]
         ]
       ]
       // Open country either side of the road, large enough to read as fields.
       const GREEN = [
         [
-          [51.4735, -0.978],
-          [51.4905, -0.955],
-          [51.4952, -0.878],
-          [51.4838, -0.845],
-          [51.4708, -0.882]
+          [51.4652, -0.9825],
+          [51.4808, -0.9528],
+          [51.4735, -0.8985],
+          [51.4562, -0.9218]
         ],
         [
-          [51.4478, -0.792],
-          [51.4592, -0.742],
-          [51.4562, -0.652],
-          [51.4415, -0.672]
+          [51.4425, -0.8265],
+          [51.4712, -0.8082],
+          [51.4905, -0.7405],
+          [51.4562, -0.7285]
         ],
         [
-          [51.5008, -0.86],
-          [51.5105, -0.815],
-          [51.5062, -0.742],
-          [51.4952, -0.775]
+          [51.4952, -0.7452],
+          [51.5138, -0.7002],
+          [51.5062, -0.6512],
+          [51.4885, -0.6825]
         ]
       ]
 
