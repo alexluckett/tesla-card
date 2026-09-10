@@ -60,9 +60,77 @@
         )
       }
 
-      // Home Assistant renders the map itself. This stand-in plots the real
-      // points the card hands over, so the shape shown is the card's own
-      // output rather than an illustration.
+      /**
+       * The route the car is driving, west to east: out of one town, along a
+       * main road, into the next. Everything on the map is defined in the same
+       * latitude and longitude as the journey, so the trail runs along the
+       * road instead of across whatever the illustration happened to contain.
+       */
+      const ROAD = [
+        [51.44, -1.02],
+        [51.4495, -0.962],
+        [51.4605, -0.902],
+        [51.4702, -0.845],
+        [51.4772, -0.788],
+        [51.487, -0.73],
+        [51.4972, -0.666],
+        [51.5074, -0.6]
+      ]
+      /**
+       * Where the car has got to: the trail must end exactly at its marker,
+       * so both come from the same slice of the road rather than being
+       * written out twice and drifting apart.
+       */
+      const AT = 5
+      const DRIVEN = ROAD.slice(0, AT + 1)
+      const CAR = ROAD[AT]
+      const DESTINATION = ROAD[ROAD.length - 1]
+      const TOWNS = [
+        { at: ROAD[0], name: 'Marlow End', r: 0.016 },
+        { at: ROAD[ROAD.length - 1], name: 'Aldbury', r: 0.019 }
+      ]
+      // Side roads leaving the main one, long enough to read as junctions
+      // rather than tick marks.
+      const LANES = [
+        [
+          [51.4605, -0.902],
+          [51.4835, -0.9125]
+        ],
+        [
+          [51.4772, -0.788],
+          [51.4548, -0.7775]
+        ],
+        [
+          [51.4972, -0.666],
+          [51.5155, -0.6815]
+        ]
+      ]
+      // Open country either side of the road, large enough to read as fields.
+      const GREEN = [
+        [
+          [51.4735, -0.978],
+          [51.4905, -0.955],
+          [51.4952, -0.878],
+          [51.4838, -0.845],
+          [51.4708, -0.882]
+        ],
+        [
+          [51.4478, -0.792],
+          [51.4592, -0.742],
+          [51.4562, -0.652],
+          [51.4415, -0.672]
+        ],
+        [
+          [51.5008, -0.86],
+          [51.5105, -0.815],
+          [51.5062, -0.742],
+          [51.4952, -0.775]
+        ]
+      ]
+
+      // Home Assistant renders the map itself. This stand-in projects the same
+      // coordinates the card hands over, so what is drawn is the card's own
+      // output on a coherent piece of ground.
       if (!customElements.get('ha-map')) {
         customElements.define(
           'ha-map',
@@ -77,9 +145,6 @@
                 }
               }
               this._props = {}
-              // The real component redraws when its properties change; the
-              // card only supplies layers on its second render, once it has
-              // found Leaflet.
               for (const name of ['entities', 'paths', 'layers']) {
                 Object.defineProperty(this, name, {
                   get: () => this._props[name],
@@ -99,13 +164,11 @@
             }
             _draw() {
               const dark = document.body.classList.contains('dark')
-              const dark0 = dark
               const paths = this.paths || []
-              // ha-entity-marker: a circle sized by --ha-marker-size, filled
-              // with the card background and outlined in the entity colour.
               const cs = getComputedStyle(this)
               const size = parseFloat(cs.getPropertyValue('--ha-marker-size')) || 48
-              const cardBg = dark0 ? '#1c1c1c' : '#ffffff'
+              const cardBg = dark ? '#1c1c1c' : '#ffffff'
+
               const marks = []
               for (const e of this.entities || []) {
                 const id = typeof e === 'string' ? e : e.entity_id
@@ -115,61 +178,68 @@
                   marks.push({ at: [a.latitude, a.longitude], colour })
                 }
               }
-              // The bearing is a Leaflet layer now, so its ends come from the
-              // markers rather than from paths.
+
+              // Fit the road as well as the journey, so both towns are in view.
               const all = [
+                ...ROAD,
                 ...marks.map((m) => m.at),
                 ...paths.flatMap((p) => p.points.map((q) => q.point)),
                 ...(this._drawn || []).flatMap((d) => d.points)
               ]
               if (!all.length) return
+
               const lats = all.map((p) => p[0])
               const lons = all.map((p) => p[1])
               const w = 460
               const h = 170
-              // One scale for both axes, as a real map has. Scaling longitude
-              // and latitude independently would skew anything angular drawn
-              // on it, an arrowhead most visibly.
+              // One scale for both axes, as a real map has.
               const midLat = (Math.max(...lats) + Math.min(...lats)) / 2
               const kx = Math.cos((midLat * Math.PI) / 180) || 1
-              const cLat = midLat
               const cLon = (Math.max(...lons) + Math.min(...lons)) / 2
               const spanLat = Math.max(...lats) - Math.min(...lats) || 0.02
               const spanLon = (Math.max(...lons) - Math.min(...lons)) * kx || 0.02
-              const pad = 1.5
-              const scale = Math.min(w / (spanLon * pad), h / (spanLat * pad))
+              const scale = Math.min(w / (spanLon * 1.18), h / (spanLat * 1.5))
               const x = (lon) => w / 2 + (lon - cLon) * kx * scale
-              const y = (lat) => h / 2 - (lat - cLat) * scale
+              const y = (lat) => h / 2 - (lat - midLat) * scale
 
               const land = dark ? '#15181b' : '#f4f5f2'
-              const park = dark ? '#1a2620' : '#e3ecdd'
-              const water = dark ? '#15303c' : '#cbe0ee'
-              const road = dark ? '#333940' : '#ffffff'
-              const casing = dark ? '#22262b' : '#e0e4de'
+              const built = dark ? '#20242a' : '#e8e8e4'
+              const green = dark ? '#1a2620' : '#e3ecdd'
+              const road = dark ? '#3a424a' : '#ffffff'
+              const casing = dark ? '#252a30' : '#e0e4de'
+              const label = dark ? '#79818b' : '#7a828c'
 
+              const line = (pts) =>
+                pts.map((p, i) => `${i ? 'L' : 'M'} ${x(p[1]).toFixed(1)} ${y(p[0]).toFixed(1)}`).join(' ')
               const pathEl = (p, extra) =>
                 `<path d="${p.points
                   .map((q, i) => `${i ? 'L' : 'M'} ${x(q.point[1]).toFixed(1)} ${y(q.point[0]).toFixed(1)}`)
-                  .join(' ')}" fill="none" stroke="${p.color}" stroke-width="3.5"
+                  .join(' ')}" fill="none" stroke="${p.color}"
                   stroke-linecap="round" stroke-linejoin="round" ${extra}/>`
 
               this.innerHTML = `<svg viewBox="0 0 ${w} ${h}" width="100%" height="100%">
                 <rect width="${w}" height="${h}" fill="${land}"/>
-                <path d="M280 0 H${w} V90 Q400 104 330 74 Q296 56 280 0Z" fill="${park}"/>
-                <path d="M0 118 Q62 108 108 128 L108 ${h} H0Z" fill="${park}"/>
-                <path d="M108 ${h} Q152 112 192 88 Q238 62 272 0" stroke="${water}"
-                  stroke-width="10" fill="none" stroke-linecap="round"/>
-                <g fill="none" stroke-linecap="round">
-                  <path d="M0 56 Q126 40 224 72 Q326 102 ${w} 92" stroke="${casing}" stroke-width="11"/>
-                  <path d="M0 56 Q126 40 224 72 Q326 102 ${w} 92" stroke="${road}" stroke-width="7"/>
-                  <path d="M52 ${h} Q70 112 60 54" stroke="${casing}" stroke-width="8"/>
-                  <path d="M52 ${h} Q70 112 60 54" stroke="${road}" stroke-width="4.5"/>
-                </g>
+                ${GREEN.map((g) => `<path d="${line(g)} Z" fill="${green}"/>`).join('')}
+                ${TOWNS.map(
+                  (t) =>
+                    `<circle cx="${x(t.at[1]).toFixed(1)}" cy="${y(t.at[0]).toFixed(1)}"
+                      r="${(t.r * scale).toFixed(1)}" fill="${built}"/>`
+                ).join('')}
+                ${LANES.map((l) => `<path d="${line(l)}" fill="none" stroke="${casing}" stroke-width="5"/>`).join('')}
+                ${LANES.map((l) => `<path d="${line(l)}" fill="none" stroke="${road}" stroke-width="2.6"/>`).join('')}
+                <path d="${line(ROAD)}" fill="none" stroke="${casing}" stroke-width="11"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="${line(ROAD)}" fill="none" stroke="${road}" stroke-width="7"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+                ${TOWNS.map(
+                  (t, i) =>
+                    `<text x="${x(t.at[1]).toFixed(1)}" y="${(y(t.at[0]) + (i ? -18 : 22)).toFixed(1)}"
+                      fill="${label}" font-size="9.5" font-family="Roboto,sans-serif"
+                      text-anchor="middle">${t.name}</text>`
+                ).join('')}
                 ${paths
                   .flatMap((p) => {
-                    if (!p.gradualOpacity) return [pathEl(p, '')]
-                    // ha-map draws each leg separately, fading towards the
-                    // oldest fix, and a dot at every point.
+                    if (!p.gradualOpacity) return [pathEl(p, 'stroke-width="3"')]
                     const step = p.gradualOpacity / Math.max(p.points.length - 2, 1)
                     const base = 1 - p.gradualOpacity
                     const out = []
@@ -178,12 +248,12 @@
                       out.push(
                         pathEl(
                           { points: [p.points[i], p.points[i + 1]], color: p.color },
-                          `stroke-width="3" opacity="${o}"`
+                          `stroke-width="3.4" opacity="${o}"`
                         )
                       )
                       out.push(
                         `<circle cx="${x(p.points[i].point[1]).toFixed(1)}"
-                          cy="${y(p.points[i].point[0]).toFixed(1)}" r="3"
+                          cy="${y(p.points[i].point[0]).toFixed(1)}" r="2.6"
                           fill="${p.color}" opacity="${o}"/>`
                       )
                     }
@@ -194,9 +264,7 @@
                   .map((d) =>
                     pathEl(
                       { points: d.points.map((pt) => ({ point: pt })), color: d.opts.color },
-                      `stroke-width="2.5"${
-                        d.opts.dashArray ? ` stroke-dasharray="${d.opts.dashArray}"` : ''
-                      }`
+                      `stroke-width="2.2"${d.opts.dashArray ? ` stroke-dasharray="${d.opts.dashArray}"` : ''}`
                     )
                   )
                   .join('')}
@@ -267,13 +335,7 @@
                 const now = Math.floor(Date.now() / 1000)
                 // Five fixes eight minutes apart, which is about what a
                 // ten-minute poll gives you on a forty minute drive.
-                const track = [
-                  [51.44, -1.02],
-                  [51.452, -0.95],
-                  [51.465, -0.86],
-                  [51.475, -0.79],
-                  [51.487, -0.73]
-                ]
+                const track = DRIVEN
                 const states = track.map(([lat, lon], i) => ({
                   a: { latitude: lat, longitude: lon },
                   lu: now - (track.length - 1 - i) * 480
@@ -312,8 +374,11 @@
         shiftState: { state: 'd' },
         speed: { state: '38', attributes: { unit_of_measurement: 'mph' } },
         locked: { state: 'unlocked' },
-        location: { state: 'not_home', attributes: { latitude: 51.487, longitude: -0.73 } },
-        route: { state: 'not_home', attributes: { latitude: 51.5074, longitude: -0.6 } },
+        location: { state: 'not_home', attributes: { latitude: CAR[0], longitude: CAR[1] } },
+        route: {
+          state: 'not_home',
+          attributes: { latitude: DESTINATION[0], longitude: DESTINATION[1] }
+        },
         arrivalTime: { state: new Date(Date.now() + 20 * 60000).toISOString() },
         distanceToArrival: { state: '14', attributes: { unit_of_measurement: 'mi' } },
         destination: { state: 'Home' }
