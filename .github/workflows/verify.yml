@@ -19,5 +19,3 @@ jobs:
       - run: npm run format
       - run: npm test
       - run: npm run build
-      - name: dist must match the committed build
-        run: git diff --exit-code dist/

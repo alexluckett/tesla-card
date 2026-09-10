@@ -218,7 +218,9 @@ To clear it, clear your browser's site data for Home Assistant.
 
 ## Building it yourself
 
-You do not need to; releases ship built. If you want to:
+You do not need to; releases ship built. `dist/` is not committed &mdash; it is produced by the
+release workflow and attached to the release, so the repository never holds a build that has
+drifted from its source. If you want to build it yourself:
 
 ```sh
 npm install
