@@ -30,8 +30,9 @@ export function readVehicle(hass, entities) {
   const onlineState = stateOf(hass, entities.online)?.state ?? null
 
   const charging = CHARGING_STATES.has(chargingRaw)
-  // Tesla reports no shift state at all when parked, and speed only while moving.
-  const moving = MOVING_SHIFTS.has(shift ?? '') || (speed !== null && speed > 0)
+  // The integration reports `p` whenever the car sends no gear, so the shift
+  // state alone says whether it is moving. Speed only feeds the readout.
+  const moving = MOVING_SHIFTS.has(shift ?? '')
   const awake = onlineState === 'on'
 
   let status

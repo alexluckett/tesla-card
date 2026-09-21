@@ -11,7 +11,14 @@ import {
   defaultWheels,
   VIEWS
 } from './lib/compositor.js'
-import { resolveEntities, lastUpdated, teslaVehicleDevices, stateOf } from './lib/entities.js'
+import {
+  resolveEntities,
+  lastUpdated,
+  teslaVehicleDevices,
+  stateOf,
+  enableEntity,
+  KEYS
+} from './lib/entities.js'
 import { readVehicle, minutesSince, formatAge, ASLEEP, CHARGING, DRIVING } from './lib/state.js'
 import { ICONS } from './icons.js'
 import { createImageCache, imageErrorAction } from './lib/image-cache.js'
@@ -37,7 +44,8 @@ export class TeslaFleetCard extends LitElement {
     _config: { state: true },
     _imageFailed: { state: true },
     _trail: { state: true },
-    _cachedSrc: { state: true }
+    _cachedSrc: { state: true },
+    _shiftEnabling: { state: true }
   }
 
   static styles = styles
@@ -57,6 +65,8 @@ export class TeslaFleetCard extends LitElement {
     this._bearingFor = null
     /** Renders already retried from the network, so a bad one cannot loop. */
     this._retried = new Set()
+    /** Enabling the shift state from the card: working, reload, restart, absent or failed. */
+    this._shiftEnabling = null
     // Tesla serve the render with max-age=60, so without this the browser
     // re-downloads it every minute a dashboard stays open.
     this._images = createImageCache()
@@ -647,6 +657,7 @@ export class TeslaFleetCard extends LitElement {
           vehicle is enabled and has reported.`
       )
     }
+    if (!this._entities?.shiftState) notices.push(this._shiftNotice())
     if (route && route.destinationEntityMissing) {
       notices.push(
         html`Enable the <code>Destination</code> entity on this device to see where the car is
@@ -655,6 +666,55 @@ export class TeslaFleetCard extends LitElement {
     }
     if (!notices.length) return nothing
     return html`${notices.map((notice) => html`<div class="notice">${notice}</div>`)}`
+  }
+
+  /**
+   * The card cannot tell driving from parked without the shift state, and the
+   * integration ships it disabled. An admin can enable it from here; anyone
+   * else is told what to ask for.
+   */
+  _shiftNotice() {
+    const intro = html`The card needs the <code>Shift state</code> entity to show when the car is
+      driving. The integration ships it disabled.`
+    switch (this._shiftEnabling) {
+      case 'reload':
+        return html`<code>Shift state</code> is enabled. Home Assistant reloads the integration in
+          about 30 seconds, then the card picks it up.`
+      case 'restart':
+        return html`<code>Shift state</code> is enabled. Restart Home Assistant to finish.`
+      case 'absent':
+        return html`This vehicle has no <code>Shift state</code> entity. Check the Tesla Fleet
+          integration is up to date.`
+      case 'failed':
+        return html`${intro} Enabling it failed. Enable it under Settings → Devices → your car.`
+    }
+    if (!this.hass?.user?.is_admin) {
+      return html`${intro} Ask an administrator to enable it under Settings → Devices → your car.`
+    }
+    return html`${intro}
+      <button
+        type="button"
+        class="enable"
+        ?disabled=${this._shiftEnabling === 'working'}
+        @click=${this._enableShift}
+      >
+        ${this._shiftEnabling === 'working' ? 'Enabling…' : 'Enable it'}
+      </button>`
+  }
+
+  async _enableShift(event) {
+    event.stopPropagation()
+    this._shiftEnabling = 'working'
+    try {
+      const { found, restart } = await enableEntity(
+        this.hass,
+        this._config.device_id,
+        KEYS.shiftState
+      )
+      this._shiftEnabling = !found ? 'absent' : restart ? 'restart' : 'reload'
+    } catch {
+      this._shiftEnabling = 'failed'
+    }
   }
 
   /**

@@ -58,6 +58,23 @@ paint: stealth_grey
 wheels: crossflow_19
 ```
 
+### Enable the shift state
+
+The card knows the car is driving from its **Shift state** sensor: `D`, `R` or `N` is driving,
+`P` is not. The integration creates that sensor switched off, and without it the card shows
+**Parked** even on the motorway.
+
+If you are a Home Assistant administrator, the card offers to do this for you: press
+**Enable it** on the notice underneath the card. To do it by hand:
+
+**Settings → Devices → your car → +n entities → Shift state → Enable**
+
+Either way, Home Assistant reloads the integration about 30 seconds later and the notice goes
+away. Users who are not administrators see the notice without the button.
+
+**Speed** is optional. It also ships switched off; enable it the same way if you want the
+driving face to lead with speed. Without it, the driving face leads with charge.
+
 ## What it shows
 
 The card has four faces, ordered by how often you will actually see them. The Fleet integration
@@ -66,7 +83,8 @@ polls every ten minutes, so **asleep is the common state** and driving is the ra
 - **Asleep** — the last known reading, dimmed, with its age stated plainly.
 - **Parked** — charge, range, lock state, and the zone if Home Assistant has one.
 - **Charging** — the gauge fills in green, and a slow sheen runs along it while energy flows.
-- **Driving** — speed leads instead of charge.
+- **Driving** — the car is in drive, reverse or neutral. Speed leads instead of charge when
+  the Speed sensor is enabled.
 
 ![Parked, charging, driving and asleep](https://raw.githubusercontent.com/alexluckett/tesla-card/main/docs/states.png?v=20260910c)
 

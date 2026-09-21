@@ -331,6 +331,25 @@ export const styles = css`
     font-size: var(--ha-font-size-s, 12.5px);
     line-height: 1.5;
   }
+  .notice button.enable {
+    display: block;
+    margin-top: 8px;
+    padding: 6px 12px;
+    font: inherit;
+    color: var(--tc-accent);
+    background: color-mix(in srgb, currentColor 16%, transparent);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .notice button.enable:focus-visible {
+    outline: 2px solid var(--tc-accent);
+    outline-offset: 2px;
+  }
+  .notice button.enable:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
   .notice code {
     font-family: var(--ha-font-family-code, monospace);
     color: var(--tc-text);

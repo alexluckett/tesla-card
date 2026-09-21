@@ -9,7 +9,13 @@ import {
   CHARGING,
   DRIVING
 } from '../src/lib/state.js'
-import { resolveEntities, lastUpdated, teslaVehicleDevices, KEYS } from '../src/lib/entities.js'
+import {
+  resolveEntities,
+  lastUpdated,
+  teslaVehicleDevices,
+  enableEntity,
+  KEYS
+} from '../src/lib/entities.js'
 
 const DEVICE = 'dev_my'
 
@@ -89,9 +95,19 @@ describe('readVehicle status', () => {
     assert.equal(v.speedUnit, 'mph')
   })
 
-  test('a speed above zero counts as moving even with no shift state', () => {
-    const hass = fakeHass({ ...parked, shiftState: { state: 'unknown' }, speed: { state: '12' } })
-    assert.equal(readVehicle(hass, resolveEntities(hass, DEVICE)).status, DRIVING)
+  test('the shift state alone decides driving, with no speed sensor', () => {
+    const withoutSpeed = Object.fromEntries(
+      Object.entries(parked).filter(([name]) => name !== 'speed')
+    )
+    const hass = fakeHass({ ...withoutSpeed, shiftState: { state: 'r' } })
+    const v = readVehicle(hass, resolveEntities(hass, DEVICE))
+    assert.equal(v.status, DRIVING)
+    assert.equal(v.speed, null)
+  })
+
+  test('a speed reading does not make the car drive while in park', () => {
+    const hass = fakeHass({ ...parked, speed: { state: '12' } })
+    assert.equal(readVehicle(hass, resolveEntities(hass, DEVICE)).status, PARKED)
   })
 
   test('reads units rather than assuming miles', () => {
@@ -266,5 +282,57 @@ describe('formatAge', () => {
     assert.equal(formatAge(150), '2 hrs ago')
     assert.equal(formatAge(1440), '1 day ago')
     assert.equal(formatAge(null), null)
+  })
+})
+
+describe('enableEntity', () => {
+  /** A hass double whose websocket holds a registry and records updates. */
+  function registryHass(registry, updateResult = { reload_delay: 30 }) {
+    const updates = []
+    return {
+      updates,
+      callWS: async (message) => {
+        if (message.type === 'config/entity_registry/list') return registry
+        updates.push(message)
+        return updateResult
+      }
+    }
+  }
+
+  const shift = {
+    entity_id: 'sensor.model_y_shift_state',
+    device_id: DEVICE,
+    platform: 'tesla_fleet',
+    translation_key: 'drive_state_shift_state',
+    disabled_by: 'integration'
+  }
+
+  test('enables the matching entity on this vehicle', async () => {
+    const hass = registryHass([
+      { ...shift, entity_id: 'sensor.other_car_shift_state', device_id: 'dev_other' },
+      shift
+    ])
+    const result = await enableEntity(hass, DEVICE, KEYS.shiftState)
+    assert.deepEqual(result, { found: true, restart: false })
+    assert.deepEqual(hass.updates, [
+      {
+        type: 'config/entity_registry/update',
+        entity_id: 'sensor.model_y_shift_state',
+        disabled_by: null
+      }
+    ])
+  })
+
+  test('reports when Home Assistant needs a restart', async () => {
+    const hass = registryHass([shift], { require_restart: true })
+    const result = await enableEntity(hass, DEVICE, KEYS.shiftState)
+    assert.equal(result.restart, true)
+  })
+
+  test('changes nothing when the vehicle has no such entity', async () => {
+    const hass = registryHass([{ ...shift, platform: 'template' }])
+    const result = await enableEntity(hass, DEVICE, KEYS.shiftState)
+    assert.deepEqual(result, { found: false, restart: false })
+    assert.deepEqual(hass.updates, [])
   })
 })

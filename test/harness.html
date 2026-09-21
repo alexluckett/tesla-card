@@ -116,7 +116,21 @@
           },
           config: { country: 'GB' },
           locale: { language: 'en-GB' },
-          callService: async (...args) => console.log('callService', ...args)
+          user: { is_admin: true },
+          callService: async (...args) => console.log('callService', ...args),
+          callWS: async (message) => {
+            console.log('callWS', message)
+            if (message.type !== 'config/entity_registry/list') return { reload_delay: 30 }
+            return [
+              {
+                entity_id: 'sensor.model_y_shift_state',
+                device_id: DEVICE,
+                platform: 'tesla_fleet',
+                translation_key: 'drive_state_shift_state',
+                disabled_by: 'integration'
+              }
+            ]
+          }
         }
       }
 
@@ -131,6 +145,10 @@
         location: { state: 'home' },
         chargeLimit: { state: '80' }
       }
+
+      const withoutShift = Object.fromEntries(
+        Object.entries(parked).filter(([name]) => name !== 'shiftState')
+      )
 
       const cases = [
         ['Parked', parked, {}],
@@ -179,17 +197,19 @@
           Object.keys(parked).map((k) => [k, { state: 'unavailable' }])
         ), {}],
         ['No device configured', parked, { device_id: '' }],
+        ['Shift state disabled', withoutShift, {}],
+        ['Shift state disabled, not an admin', withoutShift, {}, { user: { is_admin: false } }],
         ['Pearl white, helix wheels', parked, { paint: 'pearl_white', wheels: 'helix_20' }]
       ]
 
-      for (const [label, values, extra] of cases) {
+      for (const [label, values, extra, hassExtra] of cases) {
         const section = document.createElement('section')
         const h = document.createElement('h3')
         h.textContent = label
         section.append(h)
         const card = document.createElement('tesla-fleet-card')
         card.setConfig({ device_id: DEVICE, ...extra })
-        card.hass = makeHass(values)
+        card.hass = { ...makeHass(values), ...hassExtra }
         section.append(card)
         document.body.append(section)
       }

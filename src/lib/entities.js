@@ -57,7 +57,12 @@ export const KEYS = {
  * these is missing the card can tell the user exactly what to switch on,
  * rather than silently dropping the feature.
  */
-export const DISABLED_BY_DEFAULT = new Set([KEYS.destination, KEYS.chargeAtArrival])
+export const DISABLED_BY_DEFAULT = new Set([
+  KEYS.shiftState,
+  KEYS.speed,
+  KEYS.destination,
+  KEYS.chargeAtArrival
+])
 
 /** The part of an entity id before the dot. */
 export function domainOf(entityId) {
@@ -85,6 +90,38 @@ export function resolveEntities(hass, deviceId) {
     if (name) found[name] = entry.entity_id
   }
   return found
+}
+
+/**
+ * Switch on one of this vehicle's entities in the entity registry.
+ *
+ * The registry is read here, on request, rather than from `hass.entities`,
+ * because Home Assistant leaves disabled entities out of that list. Updating
+ * the registry needs an admin user.
+ *
+ * @param {object} hass
+ * @param {string} deviceId
+ * @param {string} key `domain:translation_key`, as in KEYS
+ * @returns {Promise<{ found: boolean, restart: boolean }>} `restart` is true
+ *   when Home Assistant must restart, rather than reload the integration, to
+ *   create the entity
+ */
+export async function enableEntity(hass, deviceId, key) {
+  const registry = await hass.callWS({ type: 'config/entity_registry/list' })
+  const entry = registry.find(
+    (candidate) =>
+      candidate.device_id === deviceId &&
+      candidate.platform === PLATFORM &&
+      `${domainOf(candidate.entity_id)}:${candidate.translation_key}` === key
+  )
+  if (!entry) return { found: false, restart: false }
+
+  const result = await hass.callWS({
+    type: 'config/entity_registry/update',
+    entity_id: entry.entity_id,
+    disabled_by: null
+  })
+  return { found: true, restart: Boolean(result?.require_restart) }
 }
 
 /**
