@@ -7,10 +7,7 @@ import {
   bearingArrow,
   arrowPoints,
   driftDashes,
-  DASH,
-  currentJourney,
-  trailPoints,
-  mergeTrail
+  DASH
 } from '../src/lib/geo.js'
 
 const CAR = [51.5074, -0.1278]
@@ -60,61 +57,6 @@ describe('bearingPath', () => {
   test('draws nothing once the car has arrived', () => {
     // Two identical points would render as a dot on top of the marker.
     assert.equal(bearingPath(CAR, [...CAR], '#888'), null)
-  })
-})
-
-describe('currentJourney', () => {
-  const base = new Date('2026-09-10T08:00:00Z').getTime()
-  const at = (minutes, lat = 51.5, lon = -0.1) => ({
-    point: [lat + minutes / 1000, lon],
-    timestamp: new Date(base + minutes * 60000)
-  })
-
-  test('a single continuous drive is kept whole', () => {
-    const drive = [at(0), at(10), at(20), at(30)]
-    assert.equal(currentJourney(drive).length, 4)
-  })
-
-  test("this morning's trip is not joined onto the one happening now", () => {
-    // The recorder window holds both. Drawn as one path they would be linked
-    // by a straight line the car never drove.
-    const earlier = [at(0), at(10), at(20)]
-    const parkedForAnHour = [at(90), at(100), at(110)]
-    const journey = currentJourney([...earlier, ...parkedForAnHour])
-
-    assert.equal(journey.length, 3, 'only the current trip is drawn')
-    assert.deepEqual(journey[0].timestamp, at(90).timestamp)
-  })
-
-  test('a brief stop mid-journey does not split it', () => {
-    // The car stays awake and keeps reporting, so the gaps stay small.
-    const withStop = [at(0), at(10), at(20), at(35), at(45)]
-    assert.equal(currentJourney(withStop).length, 5)
-  })
-
-  test('splits on the gap it is given', () => {
-    const points = [at(0), at(10), at(40), at(50)]
-    assert.equal(currentJourney(points, 25 * 60 * 1000).length, 2)
-    assert.equal(currentJourney(points, 45 * 60 * 1000).length, 4)
-  })
-
-  test('draws nothing from a single fix', () => {
-    assert.deepEqual(currentJourney([at(0)]), [])
-    assert.deepEqual(currentJourney([]), [])
-    assert.deepEqual(currentJourney(null), [])
-  })
-
-  test('orders points that arrive out of sequence', () => {
-    const journey = currentJourney([at(20), at(0), at(10)])
-    assert.deepEqual(
-      journey.map((p) => p.timestamp.getTime()),
-      [at(0).timestamp.getTime(), at(10).timestamp.getTime(), at(20).timestamp.getTime()]
-    )
-  })
-
-  test('discards fixes with no usable time', () => {
-    const journey = currentJourney([at(0), { point: [1, 2], timestamp: 'nope' }, at(10)])
-    assert.equal(journey.length, 2)
   })
 })
 
@@ -261,61 +203,5 @@ describe('driftDashes', () => {
   test('does nothing without an element that can animate', () => {
     assert.equal(driftDashes(null), null)
     assert.equal(driftDashes({}), null)
-  })
-})
-
-describe('trailPoints', () => {
-  test('reads positions from the compressed history format', () => {
-    const points = trailPoints([
-      { s: 'not_home', a: { latitude: 51.5, longitude: -0.1 }, lu: 1000 }
-    ])
-    assert.deepEqual(points, [{ point: [51.5, -0.1], timestamp: new Date(1000 * 1000) }])
-  })
-
-  test('falls back to the last changed time', () => {
-    // Live records carry `lu` only when it differs from `lc`.
-    const points = trailPoints([{ s: 'home', a: { latitude: 51.5, longitude: -0.1 }, lc: 1000 }])
-    assert.deepEqual(points[0].timestamp, new Date(1000 * 1000))
-  })
-
-  test('skips records that carry no position', () => {
-    // The recorder leaves attributes off a record when asked for a minimal response.
-    const points = trailPoints([
-      { s: 'not_home', lu: 1000 },
-      { s: 'not_home', a: {}, lu: 1060 },
-      { s: 'not_home', a: { latitude: 51.5, longitude: -0.1 } }
-    ])
-    assert.deepEqual(points, [])
-  })
-
-  test('is empty for anything that is not a list', () => {
-    assert.deepEqual(trailPoints(undefined), [])
-  })
-})
-
-describe('mergeTrail', () => {
-  const at = (seconds) => ({
-    point: [51.5 + seconds / 1e5, -0.1],
-    timestamp: new Date(seconds * 1000)
-  })
-
-  test('adds a live update to the history already held', () => {
-    // After the backfill, each stream message holds only the newest position.
-    const merged = mergeTrail([at(0), at(60)], [at(120)])
-    assert.deepEqual(merged, [at(0), at(60), at(120)])
-  })
-
-  test('keeps one entry per timestamp', () => {
-    const merged = mergeTrail([at(0), at(60)], [at(60), at(120)])
-    assert.equal(merged.length, 3)
-  })
-
-  test('drops positions older than the window', () => {
-    const merged = mergeTrail([at(0), at(60)], [at(120)], new Date(30 * 1000))
-    assert.deepEqual(merged, [at(60), at(120)])
-  })
-
-  test('starts from nothing', () => {
-    assert.deepEqual(mergeTrail(null, [at(0)]), [at(0)])
   })
 })

@@ -63,8 +63,8 @@
       /**
        * The route the car is driving, west to east: out of one town, along a
        * main road, into the next. Everything on the map is defined in the same
-       * latitude and longitude as the journey, so the trail runs along the
-       * road instead of across whatever the illustration happened to contain.
+       * latitude and longitude as the car, so its marker sits on the road
+       * instead of across whatever the illustration happened to contain.
        */
       /**
        * East out of one town, a bend northward, then east again into the
@@ -84,13 +84,8 @@
         [51.5218, -0.6712],
         [51.5163, -0.6402]
       ]
-      /**
-       * Where the car has got to: the trail must end exactly at its marker,
-       * so both come from the same slice of the road rather than being
-       * written out twice and drifting apart.
-       */
+      /** Where the car has got to, on the road rather than beside it. */
       const AT = 6
-      const DRIVEN = ROAD.slice(0, AT + 1)
       const CAR = ROAD[AT]
       const DESTINATION = ROAD[ROAD.length - 1]
       const TOWNS = [
@@ -339,27 +334,7 @@
           },
           config: { country: 'GB' },
           locale: { language: 'en-GB' },
-          callService: async () => {},
-          connection: {
-            subscribeMessage: (cb, msg) => {
-              if (msg?.type === 'history/stream') {
-                const now = Math.floor(Date.now() / 1000)
-                // Five fixes eight minutes apart, which is about what a
-                // ten-minute poll gives you on a forty minute drive.
-                const track = DRIVEN
-                const states = track.map(([lat, lon], i) => ({
-                  a: { latitude: lat, longitude: lon },
-                  lu: now - (track.length - 1 - i) * 480
-                }))
-                // The stream sends the window first, then each new position
-                // on its own, the way a live Home Assistant server does.
-                const id = msg.entity_ids[0]
-                queueMicrotask(() => cb({ states: { [id]: states.slice(0, -1) } }))
-                setTimeout(() => cb({ states: { [id]: states.slice(-1) } }), 50)
-              }
-              return Promise.resolve(() => {})
-            }
-          }
+          callService: async () => {}
         }
         window.__hass = hass
         return hass

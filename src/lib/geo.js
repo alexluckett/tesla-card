@@ -28,8 +28,8 @@ export function coordsOf(hass, entityId) {
  *
  * This is the direct bearing, not the road route: Tesla publish the
  * destination and the distance but no geometry, so there is nothing to draw a
- * real route from. It is deliberately a different colour from the history
- * trail so the two never read as the same thing.
+ * real route from, and the line is where the car is headed, not the road
+ * it will take.
  *
  * Home Assistant's map takes only points and a colour for a path, with no
  * dash option, so the distinction has to be carried by colour alone.
@@ -53,88 +53,6 @@ export function bearingPath(from, to, color) {
   }
 }
 
-/**
- * The current journey, out of everything the recorder holds.
- *
- * Home Assistant's history covers a fixed window, so a two hour window can
- * contain this morning's drive to the shops as well as the one happening now.
- * Drawn as one path they join into a line the car never took.
- *
- * While a vehicle is awake it is polled every few minutes, and it only stops
- * being polled once it has been asleep a while. A long gap between fixes
- * therefore means the car was parked, which is the end of a journey.
- *
- * @param {{point: [number, number], timestamp: Date}[]} points Oldest first
- * @param {number} [gapMs] Silence that counts as a journey ending
- * @returns {{point: [number, number], timestamp: Date}[]}
- */
-export function currentJourney(points, gapMs = 25 * 60 * 1000) {
-  if (!Array.isArray(points) || points.length < 2) return []
-
-  const ordered = points
-    .filter((p) => p?.timestamp instanceof Date && !Number.isNaN(p.timestamp.getTime()))
-    .sort((a, b) => a.timestamp - b.timestamp)
-  if (ordered.length < 2) return []
-
-  let start = 0
-  for (let i = ordered.length - 1; i > 0; i--) {
-    if (ordered[i].timestamp - ordered[i - 1].timestamp > gapMs) {
-      start = i
-      break
-    }
-  }
-
-  const journey = ordered.slice(start)
-  // A single fix is a dot, not a path, and drawing one is just noise.
-  return journey.length >= 2 ? journey : []
-}
-
-/**
- * Positions out of history stream records.
- *
- * The stream sends records in a compressed form: attributes under `a` and
- * the time as unix seconds under `lu`. Live records leave `lu` out when it
- * equals `lc`, so `lc` stands in for it.
- *
- * @param {unknown} records
- * @returns {{point: [number, number], timestamp: Date}[]}
- */
-export function trailPoints(records) {
-  if (!Array.isArray(records)) return []
-  return records
-    .map((entry) => {
-      const attributes = entry?.a ?? entry?.attributes ?? {}
-      const lat = attributes.latitude
-      const lon = attributes.longitude
-      if (typeof lat !== 'number' || typeof lon !== 'number') return null
-      const at = entry.lu ?? entry.lc ?? entry.last_updated
-      if (typeof at !== 'number') return null
-      return { point: [lat, lon], timestamp: new Date(at * 1000) }
-    })
-    .filter(Boolean)
-}
-
-/**
- * The trail with new positions added.
- *
- * The history stream sends the whole window once, then only the newest
- * positions as the car reports them, so each message adds to the trail
- * rather than replacing it.
- *
- * @param {{point: [number, number], timestamp: Date}[] | null} existing
- * @param {{point: [number, number], timestamp: Date}[]} incoming
- * @param {Date} [since] Positions before this fall out of the window
- * @returns {{point: [number, number], timestamp: Date}[]}
- */
-export function mergeTrail(existing, incoming, since) {
-  const byTime = new Map()
-  for (const entry of [...(existing ?? []), ...incoming]) {
-    if (since && entry.timestamp < since) continue
-    byTime.set(entry.timestamp.getTime(), entry)
-  }
-  return [...byTime.values()].sort((a, b) => a.timestamp - b.timestamp)
-}
-
 /** Dash and gap. Their sum is the distance one full cycle travels. */
 export const DASH = [5, 7]
 
@@ -144,8 +62,8 @@ export const DASH = [5, 7]
  * Home Assistant's `paths` API takes points and a colour and nothing else, so
  * a path drawn through it can only ever be solid. Its `layers` property, on
  * the other hand, adds any Leaflet layer straight to the map, which does
- * support a dash. That is the only way to make the bearing visually distinct
- * from the trail rather than merely a different colour.
+ * support a dash, so that the bearing reads as a direction rather than a
+ * road.
  *
  * Returns null when Leaflet is not reachable, so the caller can fall back to
  * a solid path instead of losing the line altogether.

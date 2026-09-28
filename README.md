@@ -148,9 +148,8 @@ Tesla does not publish the road route, so nothing on the map pretends to be one.
 
 ![Driving with the map showing the bearing to the destination](https://raw.githubusercontent.com/alexluckett/tesla-card/main/docs/map.png?v=20260910c)
 
-The map above is drawn from the coordinates and paths the card passes, including a trail the
-card built from real history; Home Assistant renders the cartography itself, in your theme.
-At a ten-minute poll a trail is a handful of fixes joined up, not a smooth track.
+The map shows where the car is and, while navigating, a dashed line to the destination. Home
+Assistant renders the cartography itself, in your theme.
 
 Left to itself, Home Assistant draws a map marker as a 48 pixel circle carrying the initials of
 the entity name, so a Tesla Model Y arrives as a large **TMY** badge. The card shrinks the
@@ -217,7 +216,6 @@ Tapping the card itself does nothing. Only buttons act.
 | `wheels` | first for your body | Wheels. Not reported by the integration. |
 | `units` | `auto` | `auto` follows Home Assistant; `imperial` or `metric` pin it. |
 | `map` | `navigating` | `navigating`, `always` or `never`. |
-| `trail` | `true` | Draw where the car has been. |
 | `controls` | `false` | Show the Tesla action buttons. |
 | `charger_power` | — | Your home charger's power sensor. Used before the Tesla figure. |
 | `charger_lock` | — | Your home charger's lock, as a switch or lock. On means locked. |

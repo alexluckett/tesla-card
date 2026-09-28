@@ -32,29 +32,17 @@ import {
 import { ICONS } from './icons.js'
 import { createImageCache, imageErrorAction } from './lib/image-cache.js'
 import { display, formatPower, resolvePreference } from './lib/units.js'
-import {
-  coordsOf,
-  bearingPath,
-  bearingLayer,
-  bearingArrow,
-  driftDashes,
-  currentJourney,
-  trailPoints,
-  mergeTrail
-} from './lib/geo.js'
+import { coordsOf, bearingPath, bearingLayer, bearingArrow, driftDashes } from './lib/geo.js'
 import { shortenPlace, arrivalIn } from './lib/text.js'
 import { mapMode, shouldShowMap, MAP_ALWAYS } from './lib/config.js'
 
 const LOW_CHARGE = 20
-/** How much history the trail draws behind the car. */
-const TRAIL_HOURS = 2
 
 export class TeslaFleetCard extends LitElement {
   static properties = {
     hass: { attribute: false },
     _config: { state: true },
     _imageFailed: { state: true },
-    _trail: { state: true },
     _cachedSrc: { state: true },
     _shiftEnabling: { state: true }
   }
@@ -64,9 +52,6 @@ export class TeslaFleetCard extends LitElement {
   constructor() {
     super()
     this._imageFailed = false
-    this._trail = null
-    this._unsubscribeHistory = null
-    this._trailFor = null
     this._cachedSrc = null
     this._cachedFor = null
     this._mapLoading = false
@@ -91,7 +76,6 @@ export class TeslaFleetCard extends LitElement {
       view: 'FRONT34',
       controls: false,
       map: 'navigating',
-      trail: true,
       ...config
     }
     if (!VIEWS.includes(this._config.view)) this._config.view = 'FRONT34'
@@ -100,7 +84,6 @@ export class TeslaFleetCard extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback()
-    this._stopHistory()
     this._images.release()
     this._cachedSrc = null
     this._cachedFor = null
@@ -161,7 +144,6 @@ export class TeslaFleetCard extends LitElement {
               name: '',
               flatten: true,
               schema: [
-                { name: 'trail', selector: { boolean: {} } },
                 { name: 'controls', selector: { boolean: {} } },
                 { name: 'performance', selector: { boolean: {} } }
               ]
@@ -265,8 +247,6 @@ export class TeslaFleetCard extends LitElement {
       Boolean(route),
       coordsOf(this.hass, entities.location) !== null
     )
-
-    this._syncHistory(showMap && this._config.trail ? entities.location : null)
 
     return html`
       <ha-card>
@@ -525,21 +505,13 @@ export class TeslaFleetCard extends LitElement {
         }
     ].filter(Boolean)
     const paths = []
-    // The map lives in its own shadow root, so a CSS variable would never
-    // resolve there. Read the real colour off this card instead.
-    const journey = currentJourney(this._trail ?? [])
-    if (journey.length > 1) {
-      paths.push({
-        points: journey,
-        color: this._cssColor('--tc-accent', '#03a9f4'),
-        gradualOpacity: 0.8
-      })
-    }
     // Only while a route is actually set: the route tracker can still hold
     // the last destination after arriving, and a line to somewhere the car is
     // no longer going would be a lie.
     const from = route ? coordsOf(this.hass, entities.location) : null
     const to = route ? coordsOf(this.hass, entities.route) : null
+    // The map lives in its own shadow root, so a CSS variable would never
+    // resolve there. Read the real colour off this card instead.
     const colour = this._cssColor('--tc-dim', '#9b9b9b')
 
     // Prefer a dashed Leaflet layer; a path can only be solid.
@@ -860,60 +832,6 @@ export class TeslaFleetCard extends LitElement {
     this.requestUpdate()
   }
 
-  // ------------------------------------------------------------------ history
-
-  /**
-   * Subscribe to the vehicle's recent positions so the map can draw where it
-   * has actually been. Home Assistant's own map card sources its trail the
-   * same way.
-   */
-  _syncHistory(entityId) {
-    if (this._trailFor === entityId) return
-    this._trailFor = entityId
-    this._stopHistory()
-    this._trail = null
-    if (!entityId || !this.hass?.connection) return
-
-    const start = new Date(Date.now() - TRAIL_HOURS * 3600 * 1000).toISOString()
-    this.hass.connection
-      .subscribeMessage(
-        (message) => {
-          const points = trailPoints(message?.states?.[entityId])
-          if (!points.length) return
-          const since = new Date(Date.now() - TRAIL_HOURS * 3600 * 1000)
-          this._trail = mergeTrail(this._trail, points, since)
-        },
-        {
-          type: 'history/stream',
-          entity_ids: [entityId],
-          start_time: start,
-          // Every record, with its attributes: a moving car keeps the same
-          // state, so only the full response carries each position.
-          minimal_response: false,
-          significant_changes_only: false,
-          no_attributes: false
-        }
-      )
-      .then((unsubscribe) => {
-        this._unsubscribeHistory = unsubscribe
-      })
-      .catch(() => {
-        // No recorder, or history is not loaded. The map still shows position.
-        this._trail = null
-      })
-  }
-
-  _stopHistory() {
-    if (this._unsubscribeHistory) {
-      try {
-        this._unsubscribeHistory()
-      } catch {
-        // Already gone.
-      }
-      this._unsubscribeHistory = null
-    }
-  }
-
   // ------------------------------------------------------------------ helpers
 
   _clock(iso) {
@@ -951,7 +869,6 @@ const LABELS = {
   wheels: 'Wheels',
   view: 'Angle',
   map: 'Show a map',
-  trail: 'Draw where it has been',
   controls: 'Show controls',
   charger_power: 'Charger power sensor',
   charger_lock: 'Charger lock',
