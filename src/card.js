@@ -17,12 +17,21 @@ import {
   teslaVehicleDevices,
   stateOf,
   enableEntity,
+  domainOf,
   KEYS
 } from './lib/entities.js'
-import { readVehicle, minutesSince, formatAge, ASLEEP, CHARGING, DRIVING } from './lib/state.js'
+import {
+  readVehicle,
+  readChargerLock,
+  minutesSince,
+  formatAge,
+  ASLEEP,
+  CHARGING,
+  DRIVING
+} from './lib/state.js'
 import { ICONS } from './icons.js'
 import { createImageCache, imageErrorAction } from './lib/image-cache.js'
-import { display, resolvePreference } from './lib/units.js'
+import { display, formatPower, resolvePreference } from './lib/units.js'
 import {
   coordsOf,
   bearingPath,
@@ -202,6 +211,14 @@ export class TeslaFleetCard extends LitElement {
                 }
               }
             },
+            {
+              name: 'charger_power',
+              selector: { entity: { filter: { domain: 'sensor', device_class: 'power' } } }
+            },
+            {
+              name: 'charger_lock',
+              selector: { entity: { filter: [{ domain: 'switch' }, { domain: 'lock' }] } }
+            },
             { name: 'name', selector: { text: {} } },
             { name: 'image', selector: { text: {} } },
             { name: 'options_override', selector: { text: {} } }
@@ -234,7 +251,9 @@ export class TeslaFleetCard extends LitElement {
     const entities = resolveEntities(this.hass, deviceId)
     // Kept so the notices can explain a missing map without re-resolving.
     this._entities = entities
-    const vehicle = readVehicle(this.hass, entities)
+    const vehicle = readVehicle(this.hass, entities, {
+      chargerPower: this._config.charger_power
+    })
     const identity = decodeVin(device.serial_number) ?? identityFromModelName(device.model) ?? null
     const name =
       this._config.name || device.name_by_user || device.name || identity?.name || 'Tesla'
@@ -260,8 +279,7 @@ export class TeslaFleetCard extends LitElement {
           ${this._readout(vehicle)} ${age ? html`<span class="age">${age}</span>` : nothing}
         </div>
         ${this._gauge(vehicle)} ${this._place(vehicle, route)}
-        ${showMap ? this._map(entities, route) : nothing}
-        ${this._config.controls ? this._controls(entities, vehicle) : nothing}
+        ${showMap ? this._map(entities, route) : nothing} ${this._controls(entities, vehicle)}
         ${this._notices(identity, route)}
       </ha-card>
     `
@@ -456,6 +474,7 @@ export class TeslaFleetCard extends LitElement {
    * Home Assistant has one. Nothing at all when neither is true.
    */
   _place(vehicle, route) {
+    const power = vehicle.status === CHARGING ? formatPower(vehicle.chargerPower) : null
     if (route) {
       const eta = arrivalIn(route.arrival)
       const where = shortenPlace(route.destination)
@@ -477,9 +496,10 @@ export class TeslaFleetCard extends LitElement {
         ${detail ? html`<span class="detail">${detail}</span>` : nothing}
       </div>`
     }
-    if (!vehicle.zone) return nothing
+    if (!vehicle.zone && !power) return nothing
     return html`<div class="place">
-      <span class="lead zone">${ICONS.pin}${vehicle.zone}</span>
+      ${vehicle.zone ? html`<span class="lead zone">${ICONS.pin}${vehicle.zone}</span>` : nothing}
+      ${power ? html`<span class="detail charging">Charging at ${power}</span>` : nothing}
     </div>`
   }
 
@@ -549,72 +569,126 @@ export class TeslaFleetCard extends LitElement {
    * A row of identical buttons says nothing about the car. These carry the
    * current state instead, so the row reads as status you can act on rather
    * than a strip of switches: the tint means "this is doing something now".
+   *
+   * The car sits on one row and charging on another, so each row stays short
+   * enough to fit. The Tesla buttons follow `controls`, because they need
+   * command scopes on the Tesla account. The home charger lock follows
+   * `charger_lock` alone: setting the entity is the choice to show it, and it
+   * needs no Tesla scopes at all.
    */
   _controls(entities, vehicle) {
+    const tesla = Boolean(this._config.controls)
     const climate = stateOf(this.hass, entities.climate)
     const target = climate?.attributes?.temperature
-    const actions = [
-      entities.locked && {
-        id: 'lock',
-        icon: vehicle.locked === false ? ICONS.lockOpen : ICONS.lock,
-        label: vehicle.locked === false ? 'Unlocked' : 'Locked',
-        entity: entities.locked,
-        domain: 'lock',
-        tone: vehicle.locked === false ? 'warn' : null
-      },
-      entities.chargeSwitch && {
-        id: 'charge',
-        icon: ICONS.bolt,
-        label: vehicle.status === CHARGING ? 'Charging' : 'Charge',
-        entity: entities.chargeSwitch,
-        domain: 'switch',
-        tone: vehicle.status === CHARGING ? 'ok' : null
-      },
-      entities.climate && {
-        id: 'climate',
-        icon: ICONS.climate,
-        label:
-          climate && climate.state !== 'off'
-            ? target !== undefined
-              ? `${Math.round(target)}°`
-              : 'On'
-            : 'Climate',
-        entity: entities.climate,
-        domain: 'climate',
-        tone: climate && climate.state !== 'off' ? 'on' : null
-      },
-      entities.sentry && {
-        id: 'sentry',
-        icon: ICONS.sentry,
-        label: 'Sentry',
-        entity: entities.sentry,
-        domain: 'switch',
-        tone: stateOf(this.hass, entities.sentry)?.state === 'on' ? 'on' : null
-      },
-      entities.wake && {
-        id: 'wake',
-        icon: ICONS.wake,
-        label: 'Wake',
-        entity: entities.wake,
-        domain: 'button',
-        tone: null
-      }
-    ].filter(Boolean)
+    const cableLocked = stateOf(this.hass, entities.chargeCable)?.state === 'locked'
+    const cableConnected = stateOf(this.hass, entities.cableConnected)?.state === 'on'
+    const chargerLock = this._config.charger_lock
+    const chargerLocked = readChargerLock(this.hass, chargerLock)
 
-    if (!actions.length) return nothing
-    return html`<div class="controls">
-      ${actions.map(
-        (action) =>
-          html`<button
-            type="button"
-            class=${action.tone ? `on ${action.tone}` : ''}
-            aria-pressed=${action.tone ? 'true' : 'false'}
-            @click=${(event) => this._runAction(event, action)}
-          >
-            ${action.icon}<span>${action.label}</span>
-          </button>`
-      )}
-    </div>`
+    const car = [
+      tesla &&
+        entities.locked && {
+          id: 'lock',
+          icon: vehicle.locked === false ? ICONS.lockOpen : ICONS.lock,
+          label: vehicle.locked === false ? 'Unlocked' : 'Locked',
+          entity: entities.locked,
+          domain: 'lock',
+          tone: vehicle.locked === false ? 'warn' : null
+        },
+      tesla &&
+        entities.climate && {
+          id: 'climate',
+          icon: ICONS.climate,
+          label:
+            climate && climate.state !== 'off'
+              ? target !== undefined
+                ? `${Math.round(target)}°`
+                : 'On'
+              : 'Climate',
+          entity: entities.climate,
+          domain: 'climate',
+          tone: climate && climate.state !== 'off' ? 'on' : null
+        },
+      tesla &&
+        entities.sentry && {
+          id: 'sentry',
+          icon: ICONS.sentry,
+          label: 'Sentry',
+          entity: entities.sentry,
+          domain: 'switch',
+          tone: stateOf(this.hass, entities.sentry)?.state === 'on' ? 'on' : null
+        },
+      tesla &&
+        entities.wake && {
+          id: 'wake',
+          icon: ICONS.wake,
+          label: 'Wake',
+          entity: entities.wake,
+          domain: 'button',
+          tone: null
+        }
+    ]
+
+    const charging = [
+      tesla &&
+        entities.chargeSwitch && {
+          id: 'charge',
+          icon: ICONS.bolt,
+          label: vehicle.status === CHARGING ? 'Charging' : 'Charge',
+          entity: entities.chargeSwitch,
+          domain: 'switch',
+          tone: vehicle.status === CHARGING ? 'ok' : null
+        },
+      // The car latches the cable itself when it goes in, and the integration
+      // can only release it, so the button acts only while the cable is held.
+      tesla &&
+        entities.chargeCable &&
+        cableConnected && {
+          id: 'cable',
+          icon: cableLocked ? ICONS.lock : ICONS.lockOpen,
+          label: cableLocked ? 'Cable locked' : 'Cable free',
+          entity: entities.chargeCable,
+          domain: 'lock',
+          tone: null,
+          disabled: !cableLocked
+        },
+      // A locked charger finishes the session in progress and refuses the
+      // next one, so it is flagged the way an unlocked car is.
+      chargerLock && {
+        id: 'charger',
+        icon: ICONS.station,
+        label:
+          chargerLocked === null
+            ? 'Charger'
+            : chargerLocked
+              ? 'Charger locked'
+              : 'Charger unlocked',
+        entity: chargerLock,
+        domain: domainOf(chargerLock),
+        tone: chargerLocked ? 'warn' : null,
+        disabled: chargerLocked === null
+      }
+    ]
+
+    const rows = [car, charging].map((row) => row.filter(Boolean)).filter((row) => row.length)
+    if (!rows.length) return nothing
+    return html`${rows.map(
+      (row) =>
+        html`<div class="controls">
+          ${row.map(
+            (action) =>
+              html`<button
+                type="button"
+                class=${action.tone ? `on ${action.tone}` : ''}
+                aria-pressed=${action.tone ? 'true' : 'false'}
+                ?disabled=${action.disabled}
+                @click=${(event) => this._runAction(event, action)}
+              >
+                ${action.icon}<span>${action.label}</span>
+              </button>`
+          )}
+        </div>`
+    )}`
   }
 
   async _runAction(event, action) {
@@ -879,6 +953,8 @@ const LABELS = {
   map: 'Show a map',
   trail: 'Draw where it has been',
   controls: 'Show controls',
+  charger_power: 'Charger power sensor',
+  charger_lock: 'Charger lock',
   performance: 'Performance model',
   units: 'Distance and speed',
   drive_hand: 'Steering wheel',
@@ -893,6 +969,9 @@ const HELPERS = {
   wheels: 'Not reported by the integration, so pick your wheels here.',
   units: 'Home Assistant treats the UK as metric, so set this to miles if you want road units.',
   map: 'Showing it only while navigating keeps the card small the rest of the time.',
+  controls: 'Commands the car, so the Tesla account needs command scopes.',
+  charger_power: "Your home charger's own power sensor. Tesla report every ten minutes.",
+  charger_lock: 'A switch or lock on your home charger. On means locked.',
   performance: 'Needed before the configurator will render the larger wheels.',
   image: 'Show your own picture instead of the configurator render.',
   options_override: 'Raw option string, for a configuration the dropdowns do not cover.'

@@ -88,3 +88,37 @@ export function normalise(unit) {
   if (lower === 'km/h' || lower === 'kph' || lower === 'kmh') return 'km/h'
   return trimmed
 }
+
+const TO_KILOWATTS = { w: 0.001, kw: 1, mw: 1000 }
+
+/**
+ * Charging power in kilowatts.
+ *
+ * Tesla report kilowatts, while a home charger commonly reports watts. A
+ * missing unit is read as kilowatts because that is what Tesla send. An
+ * unrecognised unit gives null rather than a number in the wrong scale.
+ *
+ * @param {number | null} value
+ * @param {string | null} unit
+ * @returns {number | null}
+ */
+export function kilowatts(value, unit) {
+  if (value === null || value === undefined) return null
+  if (typeof unit !== 'string' || !unit.trim()) return value
+  const factor = TO_KILOWATTS[unit.trim().toLowerCase()]
+  return factor === undefined ? null : value * factor
+}
+
+/**
+ * Charging power as a person reads it: one decimal where the tenth still
+ * means something, so a 7 kW wallbox shows 7.2 kW while a Supercharger shows
+ * 148 kW. Null when no power is flowing, so the card says nothing rather than
+ * `0 kW`.
+ *
+ * @param {number | null} kw
+ * @returns {string | null}
+ */
+export function formatPower(kw) {
+  if (kw === null || kw === undefined || !(kw > 0)) return null
+  return kw < 10 ? `${kw.toFixed(1)} kW` : `${Math.round(kw)} kW`
+}

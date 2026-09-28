@@ -5,7 +5,8 @@
  * moving, so asleep is a first-class state here rather than an error case.
  */
 
-import { numberOf, stateOf, unitOf } from './entities.js'
+import { domainOf, numberOf, stateOf, unitOf } from './entities.js'
+import { kilowatts } from './units.js'
 
 export const ASLEEP = 'asleep'
 export const PARKED = 'parked'
@@ -18,9 +19,11 @@ const MOVING_SHIFTS = new Set(['d', 'r', 'n'])
 /**
  * @param {object} hass
  * @param {Record<string, string>} entities
+ * @param {{ chargerPower?: string }} [overrides] Entities from outside the
+ *   vehicle, such as a home charger's own power sensor
  * @returns {VehicleState}
  */
-export function readVehicle(hass, entities) {
+export function readVehicle(hass, entities, overrides = {}) {
   const battery = numberOf(hass, entities.battery) ?? numberOf(hass, entities.batteryUsable)
   const speed = numberOf(hass, entities.speed)
   const shift = stateOf(hass, entities.shiftState)?.state ?? null
@@ -51,7 +54,7 @@ export function readVehicle(hass, entities) {
     speed,
     speedUnit: unitOf(hass, entities.speed),
     chargeLimit: numberOf(hass, entities.chargeLimit),
-    chargerPower: numberOf(hass, entities.chargerPower),
+    chargerPower: readPower(hass, overrides.chargerPower) ?? readPower(hass, entities.chargerPower),
     timeToFull: stateOf(hass, entities.timeToFull)?.state ?? null,
     locked: readLock(hass, entities),
     zone: readZone(hass, entities),
@@ -79,6 +82,30 @@ function readRoute(hass, entities) {
     distanceUnit: unitOf(hass, entities.distanceToArrival),
     chargeAtArrival: numberOf(hass, entities.chargeAtArrival)
   }
+}
+
+/**
+ * Charging power in kilowatts from one sensor. A home charger's own sensor
+ * reports within seconds, where Tesla report every ten minutes, so the card
+ * reads it first and falls back to Tesla while the charger is unreachable.
+ */
+function readPower(hass, entityId) {
+  return kilowatts(numberOf(hass, entityId), unitOf(hass, entityId))
+}
+
+/**
+ * Whether a home charger is locked against starting a new session. A switch
+ * reads on as locked; a lock entity reads as itself.
+ *
+ * @param {object} hass
+ * @param {string | undefined} entityId
+ * @returns {boolean | null}
+ */
+export function readChargerLock(hass, entityId) {
+  const state = stateOf(hass, entityId)?.state
+  if (!state) return null
+  if (domainOf(entityId) === 'lock') return state === 'locked'
+  return state === 'on'
 }
 
 function readLock(hass, entities) {

@@ -241,6 +241,9 @@ export const styles = css`
     font-size: var(--ha-font-size-s, 12.5px);
     flex: none;
   }
+  .place .detail.charging {
+    color: var(--tc-ok);
+  }
 
   ha-map {
     display: block;
@@ -261,6 +264,9 @@ export const styles = css`
     gap: 6px;
     margin-top: 14px;
     flex-wrap: wrap;
+  }
+  .controls + .controls {
+    margin-top: 6px;
   }
   .controls button {
     flex: 1 1 0;

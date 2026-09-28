@@ -2,6 +2,7 @@ import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   readVehicle,
+  readChargerLock,
   minutesSince,
   formatAge,
   ASLEEP,
@@ -334,5 +335,64 @@ describe('enableEntity', () => {
     const result = await enableEntity(hass, DEVICE, KEYS.shiftState)
     assert.deepEqual(result, { found: false, restart: false })
     assert.deepEqual(hass.updates, [])
+  })
+})
+
+describe('charger power', () => {
+  const charging = { ...parked, chargingState: { state: 'charging' } }
+  const tesla = {
+    ...charging,
+    chargerPower: { state: '6.8', attributes: { unit_of_measurement: 'kW' } }
+  }
+  const withCharger = (state, unit = 'W') => {
+    const hass = fakeHass(tesla)
+    hass.states['sensor.charger_power'] = {
+      entity_id: 'sensor.charger_power',
+      state,
+      attributes: { unit_of_measurement: unit }
+    }
+    return hass
+  }
+
+  test('reads the Tesla sensor when no charger sensor is set', () => {
+    const hass = fakeHass(tesla)
+    assert.equal(readVehicle(hass, resolveEntities(hass, DEVICE)).chargerPower, 6.8)
+  })
+
+  test("prefers the charger's own sensor, which reports more often", () => {
+    const hass = withCharger('7200')
+    const vehicle = readVehicle(hass, resolveEntities(hass, DEVICE), {
+      chargerPower: 'sensor.charger_power'
+    })
+    assert.equal(vehicle.chargerPower, 7.2)
+  })
+
+  test('falls back to the Tesla sensor while the charger sensor is unavailable', () => {
+    const hass = withCharger('unavailable')
+    const vehicle = readVehicle(hass, resolveEntities(hass, DEVICE), {
+      chargerPower: 'sensor.charger_power'
+    })
+    assert.equal(vehicle.chargerPower, 6.8)
+  })
+})
+
+describe('readChargerLock', () => {
+  const hass = (entityId, state) => ({ states: { [entityId]: { entity_id: entityId, state } } })
+
+  test('a switch that is on means the charger is locked', () => {
+    assert.equal(readChargerLock(hass('switch.charger_lock', 'on'), 'switch.charger_lock'), true)
+    assert.equal(readChargerLock(hass('switch.charger_lock', 'off'), 'switch.charger_lock'), false)
+  })
+
+  test('a lock entity reads as itself', () => {
+    assert.equal(readChargerLock(hass('lock.charger', 'locked'), 'lock.charger'), true)
+    assert.equal(readChargerLock(hass('lock.charger', 'unlocked'), 'lock.charger'), false)
+  })
+
+  test('unknown while the charger cannot be reached', () => {
+    assert.equal(
+      readChargerLock(hass('switch.charger_lock', 'unavailable'), 'switch.charger_lock'),
+      null
+    )
   })
 })

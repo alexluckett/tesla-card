@@ -1,6 +1,15 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { display, normalise, resolvePreference, AUTO, IMPERIAL, METRIC } from '../src/lib/units.js'
+import {
+  display,
+  normalise,
+  resolvePreference,
+  kilowatts,
+  formatPower,
+  AUTO,
+  IMPERIAL,
+  METRIC
+} from '../src/lib/units.js'
 
 const near = (actual, expected, tolerance = 0.5) =>
   assert.ok(Math.abs(actual - expected) < tolerance, `expected roughly ${expected}, got ${actual}`)
@@ -93,5 +102,43 @@ describe('resolvePreference', () => {
   test('nonsense falls back to following Home Assistant', () => {
     assert.equal(resolvePreference('furlongs'), AUTO)
     assert.equal(resolvePreference(null), AUTO)
+  })
+})
+
+describe('kilowatts', () => {
+  test('a charger reporting in watts comes out in kilowatts', () => {
+    assert.equal(kilowatts(7200, 'W'), 7.2)
+  })
+
+  test('kilowatts pass through, whatever the casing', () => {
+    assert.equal(kilowatts(7.2, 'kW'), 7.2)
+    assert.equal(kilowatts(7.2, 'KW'), 7.2)
+  })
+
+  test('a sensor with no unit is read as kilowatts, which is what Tesla send', () => {
+    assert.equal(kilowatts(11, null), 11)
+  })
+
+  test('an unrecognised unit gives nothing rather than a wrong number', () => {
+    assert.equal(kilowatts(16, 'A'), null)
+  })
+
+  test('no reading gives nothing', () => {
+    assert.equal(kilowatts(null, 'W'), null)
+  })
+})
+
+describe('formatPower', () => {
+  test('one decimal below 10 kW, where the tenth still means something', () => {
+    assert.equal(formatPower(7.23), '7.2 kW')
+  })
+
+  test('whole numbers from 10 kW, as on a Supercharger', () => {
+    assert.equal(formatPower(148.4), '148 kW')
+  })
+
+  test('nothing when there is no power flowing', () => {
+    assert.equal(formatPower(0), null)
+    assert.equal(formatPower(null), null)
   })
 })

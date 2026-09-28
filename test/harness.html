@@ -78,7 +78,10 @@
         arrivalTime: 'sensor:drive_state_active_route_minutes_to_arrival',
         distanceToArrival: 'sensor:drive_state_active_route_miles_to_arrival',
         destination: 'sensor:drive_state_active_route_destination',
+        chargerPower: 'sensor:charge_state_charger_power',
+        cableConnected: 'binary_sensor:charge_state_conn_charge_cable',
         chargeSwitch: 'switch:charge_state_charging_state',
+        chargeCable: 'lock:charge_state_charge_port_latch',
         sentry: 'switch:vehicle_state_sentry_mode',
         climate: 'climate:driver_temp',
         wake: 'button:wake'
@@ -88,6 +91,12 @@
         const entities = {}
         const states = {}
         for (const [name, v] of Object.entries(values)) {
+          // A full entity id is a device outside the car, such as a home
+          // charger: it has a state but is not on the vehicle's device.
+          if (name.includes('.')) {
+            states[name] = { entity_id: name, state: v.state, attributes: v.attributes ?? {} }
+            continue
+          }
           const [domain, key] = (KEYS[name] || 'sensor:unknown').split(':')
           const id = `${domain}.model_y_${name}`
           entities[id] = {
@@ -193,6 +202,23 @@
           sentry: { state: 'on' },
           wake: { state: 'unknown' }
         }, { controls: true }],
+        ['Charging from a home charger, no Tesla controls', {
+          ...parked,
+          chargingState: { state: 'charging' },
+          chargerPower: { state: '6.8', attributes: { unit_of_measurement: 'kW' } },
+          'sensor.wallbox_power': { state: '7230', attributes: { unit_of_measurement: 'W' } },
+          'switch.wallbox_lock': { state: 'on' }
+        }, { charger_power: 'sensor.wallbox_power', charger_lock: 'switch.wallbox_lock' }],
+        ['Controls: charging row, cable held, charger unlocked', {
+          ...parked,
+          chargingState: { state: 'charging' },
+          chargerPower: { state: '148', attributes: { unit_of_measurement: 'kW' } },
+          cableConnected: { state: 'on' },
+          chargeSwitch: { state: 'on' },
+          chargeCable: { state: 'locked' },
+          climate: { state: 'off' }, sentry: { state: 'off' }, wake: { state: 'unknown' },
+          'switch.wallbox_lock': { state: 'off' }
+        }, { controls: true, charger_lock: 'switch.wallbox_lock' }],
         ['Everything unavailable', Object.fromEntries(
           Object.keys(parked).map((k) => [k, { state: 'unavailable' }])
         ), {}],

@@ -44,6 +44,7 @@ export const KEYS = {
   // Controls. The charge switch deliberately shares its translation key with
   // the charging sensor above, which is exactly why the domain matters.
   chargeSwitch: 'switch:charge_state_charging_state',
+  chargeCable: 'lock:charge_state_charge_port_latch',
   sentry: 'switch:vehicle_state_sentry_mode',
   climate: 'climate:driver_temp',
   frunk: 'cover:vehicle_state_ft',

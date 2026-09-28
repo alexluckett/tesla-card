@@ -83,12 +83,26 @@ polls every ten minutes, so **asleep is the common state** and driving is the ra
 - **Asleep** — the last known reading, dimmed, with its age stated plainly.
 - **Parked** — charge, range, lock state, and the zone if Home Assistant has one.
 - **Charging** — the gauge fills in green, and a slow sheen runs along it while energy flows.
+  The line under the gauge says how fast, for example `Charging at 7.2 kW`.
 - **Driving** — the car is in drive, reverse or neutral. Speed leads instead of charge when
   the Speed sensor is enabled.
 
 ![Parked, charging, driving and asleep](https://raw.githubusercontent.com/alexluckett/tesla-card/main/docs/states.png?v=20260910c)
 
 The mark on the charge gauge is your **charge limit**, read from the car.
+
+### Charging speed from your home charger
+
+Tesla report charging power every ten minutes. If your home charger has its own power sensor in
+Home Assistant, give it to the card and the speed follows the charger instead, within seconds:
+
+```yaml
+charger_power: sensor.wallbox_power
+```
+
+The card reads the sensor's unit, so watts and kilowatts both work. While the charger sensor is
+unavailable, the card uses the Tesla figure. Whether the car shows as charging still comes from
+Tesla, so the card can take up to ten minutes to change face at the start or end of a session.
 
 ### Light and dark
 
@@ -175,6 +189,23 @@ when you rarely press it.
 Controlling a Tesla needs command signing set up in the integration; if you have not done that,
 leave this off.
 
+The buttons sit on two rows: the car on the first, charging on the second. The charging row has
+**Charge**, and **Cable** while a cable is connected. The car latches the cable itself, and the
+integration can only release it, so the Cable button acts only while it reads `Cable locked`.
+
+#### Home charger lock
+
+If your home charger has a lock in Home Assistant, the card can show it on the charging row:
+
+```yaml
+charger_lock: switch.wallbox_lock
+```
+
+A switch that is on reads as locked; a `lock` entity reads as itself. A locked charger finishes
+the session in progress and refuses the next one, so `Charger locked` shows in the warning
+colour. This button needs no Tesla command scopes, so it shows whenever `charger_lock` is set,
+even with `controls` off. A read-only Tesla setup can still lock and unlock its charger.
+
 Tapping the card itself does nothing. Only buttons act.
 
 ## Options
@@ -187,7 +218,9 @@ Tapping the card itself does nothing. Only buttons act.
 | `units` | `auto` | `auto` follows Home Assistant; `imperial` or `metric` pin it. |
 | `map` | `navigating` | `navigating`, `always` or `never`. |
 | `trail` | `true` | Draw where the car has been. |
-| `controls` | `false` | Show action buttons. |
+| `controls` | `false` | Show the Tesla action buttons. |
+| `charger_power` | — | Your home charger's power sensor. Used before the Tesla figure. |
+| `charger_lock` | — | Your home charger's lock, as a switch or lock. On means locked. |
 | `performance` | `false` | Needed before the larger wheels will render. |
 | `view` | `FRONT34` | `FRONT34`, `STUD_3QTR`, `SIDE`, `STUD_SIDE`, `REAR34`, `STUD_REAR`. |
 | `drive_hand` | from your country | `auto`, `lhd` or `rhd`. |
