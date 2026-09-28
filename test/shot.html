@@ -351,7 +351,11 @@
                   a: { latitude: lat, longitude: lon },
                   lu: now - (track.length - 1 - i) * 480
                 }))
-                queueMicrotask(() => cb({ states: { [msg.entity_ids[0]]: states } }))
+                // The stream sends the window first, then each new position
+                // on its own, the way a live Home Assistant server does.
+                const id = msg.entity_ids[0]
+                queueMicrotask(() => cb({ states: { [id]: states.slice(0, -1) } }))
+                setTimeout(() => cb({ states: { [id]: states.slice(-1) } }), 50)
               }
               return Promise.resolve(() => {})
             }

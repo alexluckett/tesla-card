@@ -89,6 +89,52 @@ export function currentJourney(points, gapMs = 25 * 60 * 1000) {
   return journey.length >= 2 ? journey : []
 }
 
+/**
+ * Positions out of history stream records.
+ *
+ * The stream sends records in a compressed form: attributes under `a` and
+ * the time as unix seconds under `lu`. Live records leave `lu` out when it
+ * equals `lc`, so `lc` stands in for it.
+ *
+ * @param {unknown} records
+ * @returns {{point: [number, number], timestamp: Date}[]}
+ */
+export function trailPoints(records) {
+  if (!Array.isArray(records)) return []
+  return records
+    .map((entry) => {
+      const attributes = entry?.a ?? entry?.attributes ?? {}
+      const lat = attributes.latitude
+      const lon = attributes.longitude
+      if (typeof lat !== 'number' || typeof lon !== 'number') return null
+      const at = entry.lu ?? entry.lc ?? entry.last_updated
+      if (typeof at !== 'number') return null
+      return { point: [lat, lon], timestamp: new Date(at * 1000) }
+    })
+    .filter(Boolean)
+}
+
+/**
+ * The trail with new positions added.
+ *
+ * The history stream sends the whole window once, then only the newest
+ * positions as the car reports them, so each message adds to the trail
+ * rather than replacing it.
+ *
+ * @param {{point: [number, number], timestamp: Date}[] | null} existing
+ * @param {{point: [number, number], timestamp: Date}[]} incoming
+ * @param {Date} [since] Positions before this fall out of the window
+ * @returns {{point: [number, number], timestamp: Date}[]}
+ */
+export function mergeTrail(existing, incoming, since) {
+  const byTime = new Map()
+  for (const entry of [...(existing ?? []), ...incoming]) {
+    if (since && entry.timestamp < since) continue
+    byTime.set(entry.timestamp.getTime(), entry)
+  }
+  return [...byTime.values()].sort((a, b) => a.timestamp - b.timestamp)
+}
+
 /** Dash and gap. Their sum is the distance one full cycle travels. */
 export const DASH = [5, 7]
 

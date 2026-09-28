@@ -29,7 +29,9 @@ import {
   bearingLayer,
   bearingArrow,
   driftDashes,
-  currentJourney
+  currentJourney,
+  trailPoints,
+  mergeTrail
 } from './lib/geo.js'
 import { shortenPlace, arrivalIn } from './lib/text.js'
 import { mapMode, shouldShowMap, MAP_ALWAYS } from './lib/config.js'
@@ -802,27 +804,19 @@ export class TeslaFleetCard extends LitElement {
     this.hass.connection
       .subscribeMessage(
         (message) => {
-          const states = message?.states?.[entityId]
-          if (!states) return
-          const points = states
-            .map((entry) => {
-              const attributes = entry.a ?? entry.attributes ?? {}
-              const lat = attributes.latitude
-              const lon = attributes.longitude
-              if (typeof lat !== 'number' || typeof lon !== 'number') return null
-              // The stream sends unix seconds; anything else is unusable.
-              const at = entry.lu ?? entry.last_updated
-              if (typeof at !== 'number') return null
-              return { point: [lat, lon], timestamp: new Date(at * 1000) }
-            })
-            .filter(Boolean)
-          if (points.length) this._trail = points
+          const points = trailPoints(message?.states?.[entityId])
+          if (!points.length) return
+          const since = new Date(Date.now() - TRAIL_HOURS * 3600 * 1000)
+          this._trail = mergeTrail(this._trail, points, since)
         },
         {
           type: 'history/stream',
           entity_ids: [entityId],
           start_time: start,
-          minimal_response: true,
+          // Every record, with its attributes: a moving car keeps the same
+          // state, so only the full response carries each position.
+          minimal_response: false,
+          significant_changes_only: false,
           no_attributes: false
         }
       )

@@ -8,7 +8,9 @@ import {
   arrowPoints,
   driftDashes,
   DASH,
-  currentJourney
+  currentJourney,
+  trailPoints,
+  mergeTrail
 } from '../src/lib/geo.js'
 
 const CAR = [51.5074, -0.1278]
@@ -259,5 +261,61 @@ describe('driftDashes', () => {
   test('does nothing without an element that can animate', () => {
     assert.equal(driftDashes(null), null)
     assert.equal(driftDashes({}), null)
+  })
+})
+
+describe('trailPoints', () => {
+  test('reads positions from the compressed history format', () => {
+    const points = trailPoints([
+      { s: 'not_home', a: { latitude: 51.5, longitude: -0.1 }, lu: 1000 }
+    ])
+    assert.deepEqual(points, [{ point: [51.5, -0.1], timestamp: new Date(1000 * 1000) }])
+  })
+
+  test('falls back to the last changed time', () => {
+    // Live records carry `lu` only when it differs from `lc`.
+    const points = trailPoints([{ s: 'home', a: { latitude: 51.5, longitude: -0.1 }, lc: 1000 }])
+    assert.deepEqual(points[0].timestamp, new Date(1000 * 1000))
+  })
+
+  test('skips records that carry no position', () => {
+    // The recorder leaves attributes off a record when asked for a minimal response.
+    const points = trailPoints([
+      { s: 'not_home', lu: 1000 },
+      { s: 'not_home', a: {}, lu: 1060 },
+      { s: 'not_home', a: { latitude: 51.5, longitude: -0.1 } }
+    ])
+    assert.deepEqual(points, [])
+  })
+
+  test('is empty for anything that is not a list', () => {
+    assert.deepEqual(trailPoints(undefined), [])
+  })
+})
+
+describe('mergeTrail', () => {
+  const at = (seconds) => ({
+    point: [51.5 + seconds / 1e5, -0.1],
+    timestamp: new Date(seconds * 1000)
+  })
+
+  test('adds a live update to the history already held', () => {
+    // After the backfill, each stream message holds only the newest position.
+    const merged = mergeTrail([at(0), at(60)], [at(120)])
+    assert.deepEqual(merged, [at(0), at(60), at(120)])
+  })
+
+  test('keeps one entry per timestamp', () => {
+    const merged = mergeTrail([at(0), at(60)], [at(60), at(120)])
+    assert.equal(merged.length, 3)
+  })
+
+  test('drops positions older than the window', () => {
+    const merged = mergeTrail([at(0), at(60)], [at(120)], new Date(30 * 1000))
+    assert.deepEqual(merged, [at(60), at(120)])
+  })
+
+  test('starts from nothing', () => {
+    assert.deepEqual(mergeTrail(null, [at(0)]), [at(0)])
   })
 })
